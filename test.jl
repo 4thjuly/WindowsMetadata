@@ -34,21 +34,21 @@ const HRESULT = UInt32
 const CLSID = GUID
 const IID = GUID
 
+parse_hexbytes(s::String) =  parse(Byte, s, base = 16)
+
 macro guid_str(s)
     GUID(
         parse(Culong, s[1:8], base = 16), 
         parse(Cushort, s[10:13], base = 16), 
         parse(Cushort, s[15:18], base = 16), 
-        (
-            parse(Byte, s[20:21], base = 16), 
-            parse(Byte, s[22:23], base = 16), 
-            parse(Byte, s[25:26], base = 16), 
-            parse(Byte, s[27:28], base = 16), 
-            parse(Byte, s[29:30], base = 16), 
-            parse(Byte, s[31:32], base = 16), 
-            parse(Byte, s[33:34], base = 16), 
-            parse(Byte, s[35:36], base = 16)
-        )
+        (parse_hexbytes(s[20:21]), 
+            parse_hexbytes(s[22:23]), 
+            parse_hexbytes(s[25:26]), 
+            parse_hexbytes(s[27:28]), 
+            parse_hexbytes(s[29:30]), 
+            parse_hexbytes(s[31:32]), 
+            parse_hexbytes(s[33:34]), 
+            parse_hexbytes(s[35:36]))
     )
 end
 
@@ -63,11 +63,9 @@ struct IMetaDataDispenserVtbl
     DefineScope::Ptr{Cvoid}
     OpenScope::Ptr{Cvoid}
     OpenScopeOnMemmory::Ptr{Cvoid}
-    # IMetaDataDispenserVtbl() = new(C_NULL, C_NULL, C_NULL, C_NULL, C_NULL, C_NULL)
 end
 struct IMetaDataDispenser
     pvtbl::Ptr{IMetaDataDispenserVtbl}
-    # IMetaDataDispenser() = new(Ptr{IMetaDataDispenserVtbl}(C_NULL))
 end
 
 rpmdd = Ref(Ptr{IMetaDataDispenser}(C_NULL))
@@ -80,3 +78,4 @@ res = @ccall "Rometadata".MetaDataGetDispenser(
 # Test
 mdd = unsafe_load(rpmdd[])
 vtbl = unsafe_load(mdd.pvtbl)
+dump(vtbl)
