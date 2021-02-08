@@ -1,23 +1,3 @@
-# typedef struct {
-#     unsigned long  Data1;
-#     unsigned short Data2;
-#     unsigned short Data3;
-#     byte           Data4[ 8 ];
-# } GUID;
-# HRESULT MetaDataGetDispenser(
-#   REFCLSID rclsid,
-#   REFIID   riid,
-#   LPVOID   *ppv
-# );
-
-# IMetadataDispsener dispener;
-# MetaDataGetDispenser(CLSID_CorMetaDataDispenser, IMetaDataDispenser, out dispenser);
-
-# interface IUnknown {
-#   virtual HRESULT QueryInterface (REFIID riid, void **ppvObject) = 0;
-#   virtual ULONG   AddRef () = 0;
-#   virtual ULONG   Release () = 0;
-# };
 
 # DECLARE_INTERFACE_(IMetaDataDispenser, IUnknown)
 # {
