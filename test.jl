@@ -37,8 +37,7 @@ const IID = GUID
 parse_hexbytes(s::String) =  parse(Byte, s, base = 16)
 
 macro guid_str(s)
-    GUID(
-        parse(Culong, s[1:8], base = 16), 
+    GUID(parse(Culong, s[1:8], base = 16), 
         parse(Cushort, s[10:13], base = 16), 
         parse(Cushort, s[15:18], base = 16), 
         (parse_hexbytes(s[20:21]), 
@@ -48,8 +47,7 @@ macro guid_str(s)
             parse_hexbytes(s[29:30]), 
             parse_hexbytes(s[31:32]), 
             parse_hexbytes(s[33:34]), 
-            parse_hexbytes(s[35:36]))
-    )
+            parse_hexbytes(s[35:36])))
 end
 
 const CLSID_CorMetaDataDispenser = guid"E5CB7A31-7512-11d2-89CE-0080C792E5D8"
@@ -72,8 +70,7 @@ rpmdd = Ref(Ptr{IMetaDataDispenser}(C_NULL))
 res = @ccall "Rometadata".MetaDataGetDispenser(
     Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
     Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, 
-    rpmdd::Ptr{Ptr{IMetaDataDispenser}}
-    )::Cuint
+    rpmdd::Ptr{Ptr{IMetaDataDispenser}})::Cuint
 
 # Test
 mdd = unsafe_load(rpmdd[])
