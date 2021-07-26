@@ -48,6 +48,7 @@
 # }
 
 
+const Byte = UInt8
 
 struct GUID
     Data1::Culong
@@ -62,13 +63,14 @@ const IID = GUID
 
 parse_hexbytes(s::String) =  parse(Byte, s, base = 16)
 
+# Guid of form 12345678-0123-5678-0123-567890123456
 macro guid_str(s)
-    GUID(parse(Culong, s[1:8], base = 16), 
-        parse(Cushort, s[10:13], base = 16), 
-        parse(Cushort, s[15:18], base = 16), 
-        (parse_hexbytes(s[20:21]), 
+    GUID(parse(Culong, s[1:8], base = 16),   # 12345678
+        parse(Cushort, s[10:13], base = 16), # 0123
+        parse(Cushort, s[15:18], base = 16), # 5678
+        (parse_hexbytes(s[20:21]),           # 0123
             parse_hexbytes(s[22:23]), 
-            parse_hexbytes(s[25:26]), 
+            parse_hexbytes(s[25:26]),        # 567890123456
             parse_hexbytes(s[27:28]), 
             parse_hexbytes(s[29:30]), 
             parse_hexbytes(s[31:32]), 
@@ -98,81 +100,81 @@ res = @ccall "Rometadata".MetaDataGetDispenser(
     Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
     Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, 
     rpmdd::Ptr{Ptr{IMetaDataDispenser}})::HRESULT
-
+@show res
 # Test
 mdd = unsafe_load(rpmdd[])
 vtbl = unsafe_load(mdd.pvtbl)
 dump(vtbl)
 
-
-
-
-
-
+# TODO Macro to add IUnknown automatically
 struct IMetaDataImportVtbl
-    CloseEnum::Ptr{Cvoid}
-    CountEnum::Ptr{Cvoid}
-    EnumCustomAttributes::Ptr{Cvoid}
-    EnumEvents::Ptr{Cvoid}
-    EnumFields::Ptr{Cvoid}
-    EnumFieldsWithName::Ptr{Cvoid}
-    EnumInterfaceImpls::Ptr{Cvoid}
-    EnumMemberRefs::Ptr{Cvoid}
-    EnumMembers::Ptr{Cvoid}
-    EnumMembersWithName::Ptr{Cvoid}
-    EnumMethodImpls::Ptr{Cvoid}
-    EnumMethods::Ptr{Cvoid}
-    EnumMethodSemantics::Ptr{Cvoid}
-    EnumMethodsWithName::Ptr{Cvoid}
-    EnumModuleRefs::Ptr{Cvoid}
-    EnumParams::Ptr{Cvoid}
-    EnumPermissionSets::Ptr{Cvoid}
-    EnumProperties::Ptr{Cvoid}
-    EnumSignatures::Ptr{Cvoid}
-    EnumTypeDefs::Ptr{Cvoid}
-    EnumTypeRefs::Ptr{Cvoid}
-    EnumTypeSpecs::Ptr{Cvoid}
-    EnumUnresolvedMethods::Ptr{Cvoid}
-    EnumUserStrings::Ptr{Cvoid}
-    FindField::Ptr{Cvoid}
-    FindMember::Ptr{Cvoid}
-    FindMemberRef::Ptr{Cvoid}
-    FindMethod::Ptr{Cvoid}
-    FindTypeDefByName::Ptr{Cvoid}
-    FindTypeRef::Ptr{Cvoid}
-    GetClassLayout::Ptr{Cvoid}
-    GetCustomAttributeByName::Ptr{Cvoid}
-    GetCustomAttributeProps::Ptr{Cvoid}
-    GetEventProps::Ptr{Cvoid}
-    GetFieldMarshal::Ptr{Cvoid}
-    GetFieldProps::Ptr{Cvoid}
-    GetInterfaceImplProps::Ptr{Cvoid}
-    GetMemberProps::Ptr{Cvoid}
-    GetMemberRefProps::Ptr{Cvoid}
-    GetMethodProps::Ptr{Cvoid}
-    GetMethodSemantics::Ptr{Cvoid}
-    GetModuleFromScope::Ptr{Cvoid}
-    GetModuleRefProps::Ptr{Cvoid}
-    GetNameFromToken::Ptr{Cvoid}
-    GetNativeCallConvFromSig::Ptr{Cvoid}
-    GetNestedClassProps::Ptr{Cvoid}
-    GetParamForMethodIndex::Ptr{Cvoid}
-    GetParamProps::Ptr{Cvoid}
-    GetPermissionSetProps::Ptr{Cvoid}
-    GetPinvokeMap::Ptr{Cvoid}
-    GetPropertyProps::Ptr{Cvoid}
-    GetRVA::Ptr{Cvoid}
-    GetScopeProps::Ptr{Cvoid}
-    GetSigFromToken::Ptr{Cvoid}
-    GetTypeDefProps::Ptr{Cvoid}
-    GetTypeRefProps::Ptr{Cvoid}
-    GetTypeSpecFromToken::Ptr{Cvoid}
-    GetUserString::Ptr{Cvoid}
-    IsGlobal::Ptr{Cvoid}
-    IsValidToken::Ptr{Cvoid}
-    ResetEnum::Ptr{Cvoid}
-    ResolveTypeRef::Ptr{Cvoid}
+    QueryInterface::Ptr{Cvoid}
+    AddRef::Ptr{Cvoid}
+    Release::Ptr{Cvoid}
+    CloseEnum::Ptr{Cvoid}         
+    CountEnum::Ptr{Cvoid} 
+    ResetEnum::Ptr{Cvoid} 
+    EnumTypeDefs::Ptr{Cvoid} 
+    EnumInterfaceImpls::Ptr{Cvoid} 
+    EnumTypeRefs::Ptr{Cvoid} 
+    FindTypeDefByName::Ptr{Cvoid} 
+    GetScopeProps::Ptr{Cvoid} 
+    GetModuleFromScope::Ptr{Cvoid} 
+    GetTypeDefProps::Ptr{Cvoid} 
+    GetInterfaceImplProps::Ptr{Cvoid} 
+    GetTypeRefProps::Ptr{Cvoid} 
+    ResolveTypeRef::Ptr{Cvoid} 
+    EnumMembers::Ptr{Cvoid} 
+    EnumMembersWithName::Ptr{Cvoid} 
+    EnumMethods::Ptr{Cvoid} 
+    EnumMethodsWithName::Ptr{Cvoid} 
+    EnumFields::Ptr{Cvoid} 
+    EnumFieldsWithName::Ptr{Cvoid} 
+    EnumParams::Ptr{Cvoid} 
+    EnumMemberRefs::Ptr{Cvoid} 
+    EnumMethodImpls::Ptr{Cvoid} 
+    EnumPermissionSets::Ptr{Cvoid} 
+    FindMember::Ptr{Cvoid} 
+    FindMethod::Ptr{Cvoid} 
+    FindField::Ptr{Cvoid} 
+    FindMemberRef::Ptr{Cvoid} 
+    GetMethodProps::Ptr{Cvoid} 
+    GetMemberRefProps::Ptr{Cvoid} 
+    EnumProperties::Ptr{Cvoid} 
+    EnumEvents::Ptr{Cvoid} 
+    GetEventProps::Ptr{Cvoid} 
+    EnumMethodSemantics::Ptr{Cvoid} 
+    GetMethodSemantics::Ptr{Cvoid} 
+    GetClassLayout::Ptr{Cvoid} 
+    GetFieldMarshal::Ptr{Cvoid} 
+    GetRVA::Ptr{Cvoid} 
+    GetPermissionSetProps::Ptr{Cvoid} 
+    GetSigFromToken::Ptr{Cvoid} 
+    GetModuleRefProps::Ptr{Cvoid} 
+    EnumModuleRefs::Ptr{Cvoid} 
+    GetTypeSpecFromToken::Ptr{Cvoid} 
+    GetNameFromToken::Ptr{Cvoid} 
+    EnumUnresolvedMethods::Ptr{Cvoid} 
+    GetUserString::Ptr{Cvoid} 
+    GetPinvokeMap::Ptr{Cvoid} 
+    EnumSignatures::Ptr{Cvoid} 
+    EnumTypeSpecs::Ptr{Cvoid} 
+    EnumUserStrings::Ptr{Cvoid} 
+    GetParamForMethodIndex::Ptr{Cvoid} 
+    EnumCustomAttributes::Ptr{Cvoid} 
+    GetCustomAttributeProps::Ptr{Cvoid} 
+    FindTypeRef::Ptr{Cvoid} 
+    GetMemberProps::Ptr{Cvoid} 
+    GetFieldProps::Ptr{Cvoid} 
+    GetPropertyProps::Ptr{Cvoid} 
+    GetParamProps::Ptr{Cvoid} 
+    GetCustomAttributeByName::Ptr{Cvoid} 
+    IsValidToken::Ptr{Cvoid} 
+    GetNestedClassProps::Ptr{Cvoid} 
+    GetNativeCallConvFromSig::Ptr{Cvoid} 
+    IsGlobal::Ptr{Cvoid} 
 end
+
 struct IMetaDataImport
     pvtbl::Ptr{IMetaDataImportVtbl}
 end
@@ -181,9 +183,23 @@ const CorOpenFlags_ofRead = 0x00000000;
 
 # Can't use @ccall
 rmdi = Ref(Ptr{IMetaDataImport}(C_NULL)) 
-res = ccall(vtbl.OpenScope, HRESULT, (Ptr{IMetaDataDispenser}, Cwstring, Cuint, Ptr{Cvoid}, Ptr{Ptr{IMetaDataImport}}), 
+res = ccall(vtbl.OpenScope, HRESULT, 
+    (Ptr{IMetaDataDispenser}, Cwstring, Cuint, Ptr{Cvoid}, Ptr{Ptr{IMetaDataImport}}), 
     rpmdd[], "Windows.Win32.winmd", CorOpenFlags_ofRead, Ref(IID_IMetaDataImport), rmdi)
+@show res
 mdi = unsafe_load(rmdi[])
-mtdi_vtbl = unsafe_load(mdi.pvtbl)
-dump(mtdi_vtbl)
+mdivtbl = unsafe_load(mdi.pvtbl)
+dump(mdivtbl)
 
+const ULONG32 = UInt32
+const mdToken = ULONG32
+const mdTypeDef = mdToken
+const mdTokenNil = mdToken(0)
+const ULONG = UInt32
+
+rapitoken = Ref(mdToken(0))
+res = ccall(mdivtbl.FindMember, HRESULT, 
+    (Ptr{IMetaDataImport}, mdToken, Cstring, Ptr{Cvoid}, ULONG, Ref{mdToken}),
+    rmdi[], mdTokenNil, "CreateWindowExW", C_NULL, 0, rapitoken)
+@show res
+dump(rapitoken[])
