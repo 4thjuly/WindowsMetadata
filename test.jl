@@ -197,9 +197,16 @@ const mdTypeDef = mdToken
 const mdTokenNil = mdToken(0)
 const ULONG = UInt32
 
-rapitoken = Ref(mdToken(0))
-res = ccall(mdivtbl.FindMember, HRESULT, 
-    (Ptr{IMetaDataImport}, mdToken, Cstring, Ptr{Cvoid}, ULONG, Ref{mdToken}),
-    rmdi[], mdTokenNil, "CreateWindowExW", C_NULL, 0, rapitoken)
+rtypetoken = Ref(mdToken(0))
+res = ccall(mdivtbl.FindTypeDefByName, HRESULT, 
+    (Ptr{IMetaDataImport}, Cwstring, mdToken, Ref{mdToken}),
+    rmdi[], "Windows.Win32.WindowsAndMessaging.Apis", 0, rtypetoken)
 @show res
-dump(rapitoken[])
+dump(rtypetoken[])
+
+rmethodDef = Ref(mdToken(0))
+res = ccall(mdivtbl.FindMethod, HRESULT, 
+    (Ptr{IMetaDataImport}, mdToken, Cwstring, Ptr{Cvoid}, ULONG, Ref{mdToken}),
+    rmdi[], rtypetoken[], "CreateWindowExW", C_NULL, 0, rmethodDef)
+@show res
+dump(rmethodDef[])
