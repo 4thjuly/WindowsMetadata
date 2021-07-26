@@ -96,10 +96,8 @@ struct IMetaDataDispenser
 end
 
 rpmdd = Ref(Ptr{IMetaDataDispenser}(C_NULL))
-res = @ccall "Rometadata".MetaDataGetDispenser(
-    Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
-    Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, 
-    rpmdd::Ptr{Ptr{IMetaDataDispenser}})::HRESULT
+res = @ccall "Rometadata".MetaDataGetDispenser( Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
+    Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, rpmdd::Ptr{Ptr{IMetaDataDispenser}})::HRESULT
 @show res
 # Test
 mdd = unsafe_load(rpmdd[])
@@ -181,11 +179,9 @@ end
 
 const CorOpenFlags_ofRead = 0x00000000;
 
-# Can't use @ccall
 rmdi = Ref(Ptr{IMetaDataImport}(C_NULL)) 
-res = ccall(vtbl.OpenScope, HRESULT, 
-    (Ptr{IMetaDataDispenser}, Cwstring, Cuint, Ptr{Cvoid}, Ptr{Ptr{IMetaDataImport}}), 
-    rpmdd[], "Windows.Win32.winmd", CorOpenFlags_ofRead, Ref(IID_IMetaDataImport), rmdi)
+res = @ccall $(vtbl.OpenScope)(rpmdd[]::Ptr{IMetaDataDispenser}, "Windows.Win32.winmd"::Cwstring, 
+    CorOpenFlags_ofRead::Cuint, Ref(IID_IMetaDataImport)::Ptr{Cvoid}, rmdi::Ptr{Ptr{IMetaDataImport}})::HRESULT
 @show res
 mdi = unsafe_load(rmdi[])
 mdivtbl = unsafe_load(mdi.pvtbl)
@@ -198,15 +194,14 @@ const mdTokenNil = mdToken(0)
 const ULONG = UInt32
 
 rtypetoken = Ref(mdToken(0))
-res = ccall(mdivtbl.FindTypeDefByName, HRESULT, 
-    (Ptr{IMetaDataImport}, Cwstring, mdToken, Ref{mdToken}),
-    rmdi[], "Windows.Win32.WindowsAndMessaging.Apis", 0, rtypetoken)
+res = @ccall $(mdivtbl.FindTypeDefByName)(rmdi[]::Ptr{IMetaDataImport}, "Windows.Win32.WindowsAndMessaging.Apis"::Cwstring, 
+    mdTokenNil::mdToken, rtypetoken::Ref{mdToken})::HRESULT
 @show res
 dump(rtypetoken[])
 
-rmethodDef = Ref(mdToken(0))
-res = ccall(mdivtbl.FindMethod, HRESULT, 
-    (Ptr{IMetaDataImport}, mdToken, Cwstring, Ptr{Cvoid}, ULONG, Ref{mdToken}),
-    rmdi[], rtypetoken[], "CreateWindowExW", C_NULL, 0, rmethodDef)
+res = @ccall $(mdivtbl.FindMethod)(rmdi[]::Ptr{IMetaDataImport}, rtypetoken[]::mdToken, "CreateWindowExW"::Cwstring, 
+    C_NULL::Ptr{Cvoid}, 0::ULONG, rmethodDef::Ref{mdToken})::HRESULT 
 @show res
 dump(rmethodDef[])
+
+
