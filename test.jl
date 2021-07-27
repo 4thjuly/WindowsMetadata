@@ -195,13 +195,46 @@ const ULONG = UInt32
 
 rtypetoken = Ref(mdToken(0))
 res = @ccall $(mdivtbl.FindTypeDefByName)(rmdi[]::Ptr{IMetaDataImport}, "Windows.Win32.WindowsAndMessaging.Apis"::Cwstring, 
-    mdTokenNil::mdToken, rtypetoken::Ref{mdToken})::HRESULT
+    mdTokenNil::mdToken, rtypetoken::Ptr{mdToken})::HRESULT
 @show res
 dump(rtypetoken[])
 
-rmethodDef = Ref(mdToken(0))
+methodDef = Ref(mdToken(0))
 res = @ccall $(mdivtbl.FindMethod)(rmdi[]::Ptr{IMetaDataImport}, rtypetoken[]::mdToken, "GetDesktopWindow"::Cwstring, 
-    C_NULL::Ptr{Cvoid}, 0::ULONG, rmethodDef::Ref{mdToken})::HRESULT 
+    C_NULL::Ptr{Cvoid}, 0::ULONG, rmethodDef::Ptr{mdToken})::HRESULT 
 @show res
 dump(rmethodDef[])
 
+const mdMethodDef = mdToken
+const DWORD = UInt32
+const mdModuleRef = mdToken
+
+rflags = Ref(DWORD(0))
+importname = zeros(Cwchar_t, 1024)
+rnameLen = Ref(ULONG(0))
+rmoduleRef = Ref(mdModuleRef(0))
+res = @ccall $(mdivtbl.GetPinvokeMap)(
+    rmdi[]::Ptr{IMetaDataImport}, 
+    rmethodDef[]::mdMethodDef, 
+    rflags::Ptr{DWORD},
+    importname::Ptr{Cwchar_t},
+    length(importname)::ULONG, 
+    rnameLen::Ptr{ULONG}, 
+    rmoduleRef::Ptr{mdModuleRef}
+    )::HRESULT
+@show res
+@show rflags[]
+@show rnameLen[]
+println("API: ", transcode(String, importname[begin:rnameLen[]-1]))
+
+modulename = zeros(Cwchar_t, 1024)
+rmodulanameLen = Ref(ULONG(0))
+res = @ccall $(mdivtbl.GetModuleRefProps)(
+    rmdi[]::Ptr{IMetaDataImport}, 
+    rmoduleRef[]::mdModuleRef,
+    modulename::Ptr{Cwchar_t},
+    length(modulename)::ULONG,
+    rmodulanameLen::Ptr{ULONG}
+    )::HRESULT
+@show res
+println("Module: ", transcode(String, modulename[begin:rmodulanameLen[]-1]))
