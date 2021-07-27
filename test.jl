@@ -199,9 +199,9 @@ res = @ccall $(mdivtbl.FindTypeDefByName)(rmdi[]::Ptr{IMetaDataImport}, "Windows
 @show res
 dump(rtypetoken[])
 
-res = @ccall $(mdivtbl.FindMethod)(rmdi[]::Ptr{IMetaDataImport}, rtypetoken[]::mdToken, "CreateWindowExW"::Cwstring, 
+rmethodDef = Ref(mdToken(0))
+res = @ccall $(mdivtbl.FindMethod)(rmdi[]::Ptr{IMetaDataImport}, rtypetoken[]::mdToken, "GetDesktopWindow"::Cwstring, 
     C_NULL::Ptr{Cvoid}, 0::ULONG, rmethodDef::Ref{mdToken})::HRESULT 
 @show res
 dump(rmethodDef[])
-
 
