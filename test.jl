@@ -47,6 +47,7 @@
 #    GetTypeInfo(reader, typeID, out typeName, out ancestorTypeID, out flags);
 # }
 
+const DEFAULT_BUFFER_LEN = 1024
 
 const Byte = UInt8
 
@@ -179,11 +180,16 @@ end
 
 const CorOpenFlags_ofRead = 0x00000000;
 
-rmdi = Ref(Ptr{IMetaDataImport}(C_NULL)) 
-res = @ccall $(vtbl.OpenScope)(rpmdd[]::Ptr{IMetaDataDispenser}, "Windows.Win32.winmd"::Cwstring, 
-    CorOpenFlags_ofRead::Cuint, Ref(IID_IMetaDataImport)::Ptr{Cvoid}, rmdi::Ptr{Ptr{IMetaDataImport}})::HRESULT
+rpmdi = Ref(Ptr{IMetaDataImport}(C_NULL)) 
+res = @ccall $(vtbl.OpenScope)(
+    rpmdd[]::Ref{IMetaDataDispenser}, 
+    "Windows.Win32.winmd"::Cwstring, 
+    CorOpenFlags_ofRead::Cuint, 
+    Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
+    rpmdi::Ref{Ptr{IMetaDataImport}}
+    )::HRESULT
 @show res
-mdi = unsafe_load(rmdi[])
+mdi = unsafe_load(rpmdi[])
 mdivtbl = unsafe_load(mdi.pvtbl)
 dump(mdivtbl)
 
@@ -194,14 +200,24 @@ const mdTokenNil = mdToken(0)
 const ULONG = UInt32
 
 rtypetoken = Ref(mdToken(0))
-res = @ccall $(mdivtbl.FindTypeDefByName)(rmdi[]::Ptr{IMetaDataImport}, "Windows.Win32.WindowsAndMessaging.Apis"::Cwstring, 
-    mdTokenNil::mdToken, rtypetoken::Ptr{mdToken})::HRESULT
+res = @ccall $(mdivtbl.FindTypeDefByName)(
+    rpmdi[]::Ptr{IMetaDataImport}, 
+    "Windows.Win32.WindowsAndMessaging.Apis"::Cwstring, 
+    mdTokenNil::mdToken, 
+    rtypetoken::Ref{mdToken}
+    )::HRESULT
 @show res
 dump(rtypetoken[])
 
-methodDef = Ref(mdToken(0))
-res = @ccall $(mdivtbl.FindMethod)(rmdi[]::Ptr{IMetaDataImport}, rtypetoken[]::mdToken, "GetDesktopWindow"::Cwstring, 
-    C_NULL::Ptr{Cvoid}, 0::ULONG, rmethodDef::Ptr{mdToken})::HRESULT 
+rmethodDef = Ref(mdToken(0))
+res = @ccall $(mdivtbl.FindMethod)(
+    rpmdi[]::Ptr{IMetaDataImport}, 
+    rtypetoken[]::mdToken, 
+    "RegisterClassExW"::Cwstring, 
+    C_NULL::Ref{Cvoid}, 
+    0::ULONG, 
+    rmethodDef::Ref{mdToken}
+    )::HRESULT 
 @show res
 dump(rmethodDef[])
 
@@ -210,31 +226,124 @@ const DWORD = UInt32
 const mdModuleRef = mdToken
 
 rflags = Ref(DWORD(0))
-importname = zeros(Cwchar_t, 1024)
+importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rnameLen = Ref(ULONG(0))
 rmoduleRef = Ref(mdModuleRef(0))
 res = @ccall $(mdivtbl.GetPinvokeMap)(
-    rmdi[]::Ptr{IMetaDataImport}, 
+    rpmdi[]::Ptr{IMetaDataImport}, 
     rmethodDef[]::mdMethodDef, 
-    rflags::Ptr{DWORD},
-    importname::Ptr{Cwchar_t},
+    rflags::Ref{DWORD},
+    importname::Ref{Cwchar_t},
     length(importname)::ULONG, 
-    rnameLen::Ptr{ULONG}, 
-    rmoduleRef::Ptr{mdModuleRef}
+    rnameLen::Ref{ULONG}, 
+    rmoduleRef::Ref{mdModuleRef}
     )::HRESULT
 @show res
 @show rflags[]
 @show rnameLen[]
 println("API: ", transcode(String, importname[begin:rnameLen[]-1]))
 
-modulename = zeros(Cwchar_t, 1024)
+modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rmodulanameLen = Ref(ULONG(0))
 res = @ccall $(mdivtbl.GetModuleRefProps)(
-    rmdi[]::Ptr{IMetaDataImport}, 
+    rpmdi[]::Ptr{IMetaDataImport}, 
     rmoduleRef[]::mdModuleRef,
-    modulename::Ptr{Cwchar_t},
+    modulename::Ref{Cwchar_t},
     length(modulename)::ULONG,
-    rmodulanameLen::Ptr{ULONG}
+    rmodulanameLen::Ref{ULONG}
     )::HRESULT
 @show res
 println("Module: ", transcode(String, modulename[begin:rmodulanameLen[]-1]))
+
+const mdParamDef = mdToken
+
+rparamDef = Ref(mdParamDef(0))
+res = @ccall $(mdivtbl.GetParamForMethodIndex)(
+    rpmdi[]::Ptr{IMetaDataImport},
+    rmethodDef[]::mdMethodDef,
+    1::ULONG,
+    rparamDef::Ref{mdParamDef}
+)::HRESULT
+@show res
+@show rparamDef[]
+
+paramName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+rparamMethodDef = Ref(mdMethodDef(0))
+rparamNameLen = Ref(ULONG(0))
+rseq = Ref(ULONG(0))
+rattr = Ref(DWORD(0))
+rcplustypeFlag = Ref(DWORD(0))
+rpvalue = Ptr{Cvoid}(0)
+rcchValue = Ref(ULONG(0))
+res = @ccall $(mdivtbl.GetParamProps)(
+    rpmdi[]::Ptr{IMetaDataImport},
+    rparamDef[]::mdParamDef,
+    rparamMethodDef::Ref{mdMethodDef},
+    rseq::Ref{ULONG},
+    paramName::Ref{Cwchar_t},
+    length(paramName)::ULONG,
+    rparamNameLen::Ptr{ULONG},
+    rattr::Ptr{DWORD},
+    rcplustypeFlag::Ptr{DWORD},
+    rpvalue::Ptr{Cvoid},
+    rcchValue::Ptr{ULONG}
+    )::HRESULT
+@show res
+@show rparamMethodDef[]
+@show rseq[]
+@show rparamNameLen[]
+println("Param: ", transcode(String, paramName[begin:rparamNameLen[]-1]))
+
+const mdSignature = mdToken
+const COR_SIGNATURE = UInt8
+
+# rpsig = Ref(Ptr{COR_SIGNATURE}(C_NULL))
+# rsigLen = Ref(ULONG(0))
+# res = @ccall $(mdivtbl.GetSigFromToken)(
+#     rpmdi[]::Ptr{IMetaDataImport},
+#     rmethodDef[]::mdSignature,
+#     rpsig::Ref{Ptr{COR_SIGNATURE}},
+#     rsigLen::Ref{ULONG}
+#     )::HRESULT
+# @show res
+
+rclass = Ref(mdTypeDef(0))
+methodName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+rmethodNameLen = Ref(ULONG(0))
+rattr = Ref(DWORD(0))
+rpsig = Ref(Ptr{COR_SIGNATURE}(C_NULL))
+rsigLen = Ref(ULONG(0))
+rrva = Ref(ULONG(0))
+rflags = Ref(DWORD(0))
+res = @ccall $(mdivtbl.GetMethodProps)(
+    rpmdi[]::Ptr{IMetaDataImport},
+    rmethodDef[]::mdMethodDef,
+    rclass::Ref{mdTypeDef},
+    methodName::Ref{Cwchar_t},
+    length(methodName)::ULONG,
+    rmethodNameLen::Ref{ULONG},
+    rattr::Ref{DWORD},
+    rpsig::Ref{Ptr{COR_SIGNATURE}},
+    rsigLen::Ref{ULONG},
+    rrva::Ref{ULONG},
+    rflags::Ref{DWORD}
+    )::HRESULT
+@show res
+@show rclass[]
+@show rmethodNameLen[]
+println("methodName: ", transcode(String, methodName[begin:rmethodNameLen[]-1]))
+
+# @show rsigLen[]
+
+# HRESULT GetMethodProps (  
+#     [in]  mdMethodDef         mb,  
+#     [out] mdTypeDef           *pClass,  
+#     [out] LPWSTR              szMethod,  
+#     [in]  ULONG               cchMethod,  
+#     [out] ULONG               *pchMethod,  
+#     [out] DWORD               *pdwAttr,  
+#     [out] PCCOR_SIGNATURE     *ppvSigBlob,  
+#     [out] ULONG               *pcbSigBlob,  
+#     [out] ULONG               *pulCodeRVA,  
+#     [out] DWORD               *pdwImplFlags  
+# ); 
