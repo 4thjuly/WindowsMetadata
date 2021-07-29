@@ -332,18 +332,77 @@ res = @ccall $(mdivtbl.GetMethodProps)(
 @show rclass[]
 @show rmethodNameLen[]
 println("methodName: ", transcode(String, methodName[begin:rmethodNameLen[]-1]))
+@show rsigLen[]
+sig = unsafe_wrap(Vector{UInt8}, Ptr{UInt8}(rpsig[]), rsigLen[])
+@show sig
+println()
 
-# @show rsigLen[]
+const mdTypeRef = mdToken
+const TYPEDEF_TYPE_FLAG = 0x02000000
 
-# HRESULT GetMethodProps (  
-#     [in]  mdMethodDef         mb,  
-#     [out] mdTypeDef           *pClass,  
-#     [out] LPWSTR              szMethod,  
-#     [in]  ULONG               cchMethod,  
-#     [out] ULONG               *pchMethod,  
-#     [out] DWORD               *pdwAttr,  
-#     [out] PCCOR_SIGNATURE     *ppvSigBlob,  
-#     [out] ULONG               *pcbSigBlob,  
-#     [out] ULONG               *pulCodeRVA,  
-#     [out] DWORD               *pdwImplFlags  
-# ); 
+# typedref = mdTypeRef(UInt32(sig[6]) << 8 | UInt32(sig[7]))
+# typedref = mdTypeRef(UInt32(sig[7]) << 8 | UInt32(sig[6]))
+# refordef = typedref & ((1 << 2) - 1) # 0 for def
+# typedref = mdTypeRef(0x02000000 | (typedref >> 2) - 1)
+
+# typedref = UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7])
+typedref = mdTypeRef(TYPEDEF_TYPE_FLAG | UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7]))
+@show typedref
+println()
+
+# check
+valid = @ccall $(mdivtbl.IsValidToken)(
+    rpmdi[]::Ptr{IMetaDataImport},
+    typedref::mdToken
+    )::Bool
+@show valid
+println()
+
+# rscope = Ref(mdToken(0))
+# name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+# rnameLen = Ref(ULONG(0))
+# res = @ccall $(mdivtbl.GetTypeRefProps)(
+#     rpmdi[]::Ptr{IMetaDataImport},
+#     typedref::mdTypeRef,
+#     rscope::Ref{mdToken},
+#     name::Ref{Cwchar_t},
+#     length(name)::ULONG,
+#     rnameLen::Ref{ULONG}
+#     )::HRESULT
+# @show res
+
+typename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+rtypenameLen = Ref(ULONG(0))
+rflags = Ref(DWORD(0))
+rExtends = Ref(mdToken(0))
+res = @ccall $(mdivtbl.GetTypeDefProps)(
+    rpmdi[]::Ptr{IMetaDataImport},
+    typedref::mdTypeRef,
+    typename::Ref{Cwchar_t},
+    rtypenameLen::Ref{ULONG},
+    rflags::Ref{DWORD},
+    rExtends::Ref{mdToken}
+    )::HRESULT
+@show res
+@show rflags[]
+@show rExtends[]
+@show rtypenameLen[]
+println("typename: ", transcode(String, typename[begin:rtypenameLen[]-1]))
+println()
+
+rscope = Ref(mdToken(0))
+name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+rnameLen = Ref(ULONG(0))
+res = @ccall $(mdivtbl.GetTypeRefProps)(
+    rpmdi[]::Ptr{IMetaDataImport},
+    rExtends[]::mdTypeRef,
+    rscope::Ref{mdToken},
+    name::Ref{Cwchar_t},
+    length(name)::ULONG,
+    rnameLen::Ref{ULONG}
+    )::HRESULT
+@show res
+@show rscope
+@show rnameLen
+@show rtypenameLen[]
+println("typename: ", transcode(String, name[begin:rnameLen[]-1]))
