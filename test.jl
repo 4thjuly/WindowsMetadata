@@ -339,6 +339,7 @@ println()
 
 const mdTypeRef = mdToken
 const TYPEDEF_TYPE_FLAG = 0x02000000
+const TYPEREF_TYPE_FLAG = 0x01000000
 
 # typedref = mdTypeRef(UInt32(sig[6]) << 8 | UInt32(sig[7]))
 # typedref = mdTypeRef(UInt32(sig[7]) << 8 | UInt32(sig[6]))
@@ -379,8 +380,8 @@ res = @ccall $(mdivtbl.GetTypeDefProps)(
     rpmdi[]::Ptr{IMetaDataImport},
     typedref::mdTypeRef,
     typename::Ref{Cwchar_t},
+    length(typename)::ULONG,
     rtypenameLen::Ref{ULONG},
-    rflags::Ref{DWORD},
     rExtends::Ref{mdToken}
     )::HRESULT
 @show res
@@ -402,7 +403,24 @@ res = @ccall $(mdivtbl.GetTypeRefProps)(
     rnameLen::Ref{ULONG}
     )::HRESULT
 @show res
-@show rscope
-@show rnameLen
-@show rtypenameLen[]
-println("typename: ", transcode(String, name[begin:rnameLen[]-1]))
+@show rnameLen[]
+println("name: ", transcode(String, name[begin:rnameLen[]-1]))
+println()
+
+# name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+# rameLen = Ref(ULONG(0))
+# rflags = Ref(DWORD(0))
+# res = @ccall $(mdivtbl.GetTypeDefProps)(
+#     rpmdi[]::Ptr{IMetaDataImport},
+#     rExtends[]::mdTypeRef,
+#     typename::Ref{Cwchar_t},
+#     length(typename)::ULONG,
+#     rtypenameLen::Ref{ULONG},
+#     rExtends::Ref{mdToken}
+#     )::HRESULT
+# @show res
+# @show rflags[]
+# @show rExtends[]
+# @show rtypenameLen[]
+# println("typename: ", transcode(String, typename[begin:rtypenameLen[]-1]))
+# println()
