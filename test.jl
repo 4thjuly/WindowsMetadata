@@ -1,52 +1,4 @@
 
-# DECLARE_INTERFACE_(IMetaDataDispenser, IUnknown)
-# {
-#     STDMETHOD(DefineScope)(                 // Return code.
-#         REFCLSID    rclsid,                 // [in] What version to create.
-#         DWORD       dwCreateFlags,          // [in] Flags on the create.
-#         REFIID      riid,                   // [in] The interface desired.
-#         IUnknown    **ppIUnk) PURE;         // [out] Return interface on success.
-
-#     STDMETHOD(OpenScope)(                   // Return code.
-#         LPCWSTR     szScope,                // [in] The scope to open.
-#         DWORD       dwOpenFlags,            // [in] Open mode flags.
-#         REFIID      riid,                   // [in] The interface desired.
-#         IUnknown    **ppIUnk) PURE;         // [out] Return interface on success.
-
-#     STDMETHOD(OpenScopeOnMemory)(           // Return code.
-#         LPCVOID     pData,                  // [in] Location of scope data.
-#         ULONG       cbData,                 // [in] Size of the data pointed to by pData.
-#         DWORD       dwOpenFlags,            // [in] Open mode flags.
-#         REFIID      riid,                   // [in] The interface desired.
-#         IUnknown    **ppIUnk) PURE;         // [out] Return interface on success.
-# };
-
-# //Open the winmd file we want to dump
-# String filename = "C:\Windows\System32\WinMetadata\Windows.Globalization.winmd";
-
-# IMetaDataImport reader; //IMetadataImport2 supports generics
-# dispenser.OpenScope(filename, ofRead, IMetaDataImport, out reader); //"Import" is used to read metadata. "Emit" is used to write metadata.
-
-# const Byte = UInt8
-# Pointer enum = null;
-# mdTypeDef typeID;
-# Int32 nRead;
-# while (reader.EnumTypeDefs(enum, out typeID, 1, out nRead) = S_OK)
-# {
-#    ProcessToken(reader, typeID);
-# }
-# reader.CloseEnum(enum);
-
-# void ProcessToken(IMetaDataImport reader, mdTypeDef typeID)
-# {
-#    //Get three interesting properties of the token:
-#    String      typeName;       //e.g. "Windows.Globalization.NumberFormatting.DecimalFormatter"
-#    UInt32      ancestorTypeID; //the token of this type's ancestor (e.g. Object, Interface, System.ValueType, System.Enum)
-#    CorTypeAttr flags;          //various flags about the type (e.g. public, private, is an interface)
-
-#    GetTypeInfo(reader, typeID, out typeName, out ancestorTypeID, out flags);
-# }
-
 const DEFAULT_BUFFER_LEN = 1024
 
 const Byte = UInt8
@@ -341,13 +293,12 @@ const mdTypeRef = mdToken
 const TYPEDEF_TYPE_FLAG = 0x02000000
 const TYPEREF_TYPE_FLAG = 0x01000000
 
-# typedref = mdTypeRef(UInt32(sig[6]) << 8 | UInt32(sig[7]))
-# typedref = mdTypeRef(UInt32(sig[7]) << 8 | UInt32(sig[6]))
-# refordef = typedref & ((1 << 2) - 1) # 0 for def
-# typedref = mdTypeRef(0x02000000 | (typedref >> 2) - 1)
-
-# typedref = UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7])
-typedref = mdTypeRef(TYPEDEF_TYPE_FLAG | UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7]))
+encoded = UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7])
+@show encoded
+refDefOrSpec = encoded & 0x03
+@show refDefOrSpec
+# assume ref
+typedref = mdTypeRef(TYPEREF_TYPE_FLAG | (encoded >> 2))
 @show typedref
 println()
 
@@ -359,53 +310,57 @@ valid = @ccall $(mdivtbl.IsValidToken)(
 @show valid
 println()
 
-# rscope = Ref(mdToken(0))
-# name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-# rnameLen = Ref(ULONG(0))
-# res = @ccall $(mdivtbl.GetTypeRefProps)(
-#     rpmdi[]::Ptr{IMetaDataImport},
-#     typedref::mdTypeRef,
-#     rscope::Ref{mdToken},
-#     name::Ref{Cwchar_t},
-#     length(name)::ULONG,
-#     rnameLen::Ref{ULONG}
-#     )::HRESULT
-# @show res
-
-typename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-rtypenameLen = Ref(ULONG(0))
-rflags = Ref(DWORD(0))
-rExtends = Ref(mdToken(0))
-res = @ccall $(mdivtbl.GetTypeDefProps)(
-    rpmdi[]::Ptr{IMetaDataImport},
-    typedref::mdTypeRef,
-    typename::Ref{Cwchar_t},
-    length(typename)::ULONG,
-    rtypenameLen::Ref{ULONG},
-    rExtends::Ref{mdToken}
-    )::HRESULT
-@show res
-@show rflags[]
-@show rExtends[]
-@show rtypenameLen[]
-println("typename: ", transcode(String, typename[begin:rtypenameLen[]-1]))
-println()
-
 rscope = Ref(mdToken(0))
 name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rnameLen = Ref(ULONG(0))
 res = @ccall $(mdivtbl.GetTypeRefProps)(
     rpmdi[]::Ptr{IMetaDataImport},
-    rExtends[]::mdTypeRef,
+    typedref::mdTypeRef,
     rscope::Ref{mdToken},
     name::Ref{Cwchar_t},
     length(name)::ULONG,
     rnameLen::Ref{ULONG}
     )::HRESULT
 @show res
+@show rscope[]
 @show rnameLen[]
-println("name: ", transcode(String, name[begin:rnameLen[]-1]))
+println("refname: ", transcode(String, name[begin:rnameLen[]-1]))
 println()
+
+# typename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+# rtypenameLen = Ref(ULONG(0))
+# rflags = Ref(DWORD(0))
+# rExtends = Ref(mdToken(0))
+# res = @ccall $(mdivtbl.GetTypeDefProps)(
+#     rpmdi[]::Ptr{IMetaDataImport},
+#     typedref::mdTypeRef,
+#     typename::Ref{Cwchar_t},
+#     length(typename)::ULONG,
+#     rtypenameLen::Ref{ULONG},
+#     rExtends::Ref{mdToken}
+#     )::HRESULT
+# @show res
+# @show rflags[]
+# @show rExtends[]
+# @show rtypenameLen[]
+# println("defname: ", transcode(String, typename[begin:rtypenameLen[]-1]))
+# println()
+
+# rscope = Ref(mdToken(0))
+# name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+# rnameLen = Ref(ULONG(0))
+# res = @ccall $(mdivtbl.GetTypeRefProps)(
+#     rpmdi[]::Ptr{IMetaDataImport},
+#     rExtends[]::mdTypeRef,
+#     rscope::Ref{mdToken},
+#     name::Ref{Cwchar_t},
+#     length(name)::ULONG,
+#     rnameLen::Ref{ULONG}
+#     )::HRESULT
+# @show res
+# @show rnameLen[]
+# println("name: ", transcode(String, name[begin:rnameLen[]-1]))
+# println()
 
 # name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 # rameLen = Ref(ULONG(0))
