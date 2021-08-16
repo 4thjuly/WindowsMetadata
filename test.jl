@@ -1,4 +1,6 @@
 
+import Base.@kwdef
+
 const DEFAULT_BUFFER_LEN = 1024
 
 const Byte = UInt8
@@ -11,6 +13,7 @@ struct GUID
 end
 
 const HRESULT = UInt32
+const S_OK = 0x00000000
 const CLSID = GUID
 const IID = GUID
 
@@ -35,11 +38,21 @@ const CLSID_CorMetaDataDispenser = guid"E5CB7A31-7512-11d2-89CE-0080C792E5D8"
 const IID_IMetaDataDispenser = guid"809C652E-7396-11D2-9771-00A0C9B4D50C"
 const IID_IMetaDataImport = guid"7DAC8207-D3AE-4C75-9B67-92801A497D44"
 
-# TODO - Make Interface definitions a macro?
-struct IMetaDataDispenserVtbl
+
+struct IUnknown
     QueryInterface::Ptr{Cvoid}
     AddRef::Ptr{Cvoid}
     Release::Ptr{Cvoid}
+end
+
+# TODO - Make Interface definitions a macro?
+# - Create the vtbl, prepend other interface (eg IUnknown) and define the IID_ ala DECLARE_INTERFACE_IID 
+# @declare_interface_iid IMetaDataDispenser IUnknown "7DAC8207-D3AE-4C75-9B67-92801A497D44"
+#     ...
+# end
+
+struct IMetaDataDispenserVtbl
+    iUnknown::IUnknown
     DefineScope::Ptr{Cvoid}
     OpenScope::Ptr{Cvoid}
     OpenScopeOnMemmory::Ptr{Cvoid}
@@ -49,19 +62,20 @@ struct IMetaDataDispenser
 end
 
 rpmdd = Ref(Ptr{IMetaDataDispenser}(C_NULL))
-res = @ccall "Rometadata".MetaDataGetDispenser( Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
-    Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, rpmdd::Ptr{Ptr{IMetaDataDispenser}})::HRESULT
+res = @ccall "Rometadata".MetaDataGetDispenser( 
+    Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
+    Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, 
+    rpmdd::Ref{Ptr{IMetaDataDispenser}}
+    )::HRESULT
 @show res
 # Test
-mdd = unsafe_load(rpmdd[])
+pmdd = rpmdd[]
+mdd = unsafe_load(pmdd)
 vtbl = unsafe_load(mdd.pvtbl)
 dump(vtbl)
 
-# TODO Macro to add IUnknown automatically
 struct IMetaDataImportVtbl
-    QueryInterface::Ptr{Cvoid}
-    AddRef::Ptr{Cvoid}
-    Release::Ptr{Cvoid}
+    iUnknown::IUnknown
     CloseEnum::Ptr{Cvoid}         
     CountEnum::Ptr{Cvoid} 
     ResetEnum::Ptr{Cvoid} 
@@ -134,16 +148,17 @@ const CorOpenFlags_ofRead = 0x00000000;
 
 rpmdi = Ref(Ptr{IMetaDataImport}(C_NULL)) 
 res = @ccall $(vtbl.OpenScope)(
-    rpmdd[]::Ref{IMetaDataDispenser}, 
+    pmdd::Ref{IMetaDataDispenser}, 
     "Windows.Win32.winmd"::Cwstring, 
     CorOpenFlags_ofRead::Cuint, 
     Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
     rpmdi::Ref{Ptr{IMetaDataImport}}
     )::HRESULT
 @show res
-mdi = unsafe_load(rpmdi[])
+pmdi = rpmdi[]
+mdi = unsafe_load(pmdi)
 mdivtbl = unsafe_load(mdi.pvtbl)
-dump(mdivtbl)
+# dump(mdivtbl)
 
 const ULONG32 = UInt32
 const mdToken = ULONG32
@@ -153,7 +168,7 @@ const ULONG = UInt32
 
 rtypetoken = Ref(mdToken(0))
 res = @ccall $(mdivtbl.FindTypeDefByName)(
-    rpmdi[]::Ptr{IMetaDataImport}, 
+    pmdi::Ptr{IMetaDataImport}, 
     "Windows.Win32.WindowsAndMessaging.Apis"::Cwstring, 
     mdTokenNil::mdToken, 
     rtypetoken::Ref{mdToken}
@@ -163,7 +178,7 @@ dump(rtypetoken[])
 
 rmethodDef = Ref(mdToken(0))
 res = @ccall $(mdivtbl.FindMethod)(
-    rpmdi[]::Ptr{IMetaDataImport}, 
+    pmdi::Ptr{IMetaDataImport}, 
     rtypetoken[]::mdToken, 
     "RegisterClassExW"::Cwstring, 
     C_NULL::Ref{Cvoid}, 
@@ -182,7 +197,7 @@ importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rnameLen = Ref(ULONG(0))
 rmoduleRef = Ref(mdModuleRef(0))
 res = @ccall $(mdivtbl.GetPinvokeMap)(
-    rpmdi[]::Ptr{IMetaDataImport}, 
+    pmdi::Ptr{IMetaDataImport}, 
     rmethodDef[]::mdMethodDef, 
     rflags::Ref{DWORD},
     importname::Ref{Cwchar_t},
@@ -198,7 +213,7 @@ println("API: ", transcode(String, importname[begin:rnameLen[]-1]))
 modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rmodulanameLen = Ref(ULONG(0))
 res = @ccall $(mdivtbl.GetModuleRefProps)(
-    rpmdi[]::Ptr{IMetaDataImport}, 
+    pmdi::Ptr{IMetaDataImport}, 
     rmoduleRef[]::mdModuleRef,
     modulename::Ref{Cwchar_t},
     length(modulename)::ULONG,
@@ -211,7 +226,7 @@ const mdParamDef = mdToken
 
 rparamDef = Ref(mdParamDef(0))
 res = @ccall $(mdivtbl.GetParamForMethodIndex)(
-    rpmdi[]::Ptr{IMetaDataImport},
+    pmdi::Ptr{IMetaDataImport},
     rmethodDef[]::mdMethodDef,
     1::ULONG,
     rparamDef::Ref{mdParamDef}
@@ -228,7 +243,7 @@ rcplustypeFlag = Ref(DWORD(0))
 rpvalue = Ptr{Cvoid}(0)
 rcchValue = Ref(ULONG(0))
 res = @ccall $(mdivtbl.GetParamProps)(
-    rpmdi[]::Ptr{IMetaDataImport},
+    pmdi::Ptr{IMetaDataImport},
     rparamDef[]::mdParamDef,
     rparamMethodDef::Ref{mdMethodDef},
     rseq::Ref{ULONG},
@@ -268,7 +283,7 @@ rsigLen = Ref(ULONG(0))
 rrva = Ref(ULONG(0))
 rflags = Ref(DWORD(0))
 res = @ccall $(mdivtbl.GetMethodProps)(
-    rpmdi[]::Ptr{IMetaDataImport},
+    pmdi::Ptr{IMetaDataImport},
     rmethodDef[]::mdMethodDef,
     rclass::Ref{mdTypeDef},
     methodName::Ref{Cwchar_t},
@@ -304,7 +319,7 @@ println()
 
 # check
 valid = @ccall $(mdivtbl.IsValidToken)(
-    rpmdi[]::Ptr{IMetaDataImport},
+    pmdi::Ptr{IMetaDataImport},
     typedref::mdToken
     )::Bool
 @show valid
@@ -314,7 +329,7 @@ rscope = Ref(mdToken(0))
 name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rnameLen = Ref(ULONG(0))
 res = @ccall $(mdivtbl.GetTypeRefProps)(
-    rpmdi[]::Ptr{IMetaDataImport},
+    pmdi::Ptr{IMetaDataImport},
     typedref::mdTypeRef,
     rscope::Ref{mdToken},
     name::Ref{Cwchar_t},
@@ -324,43 +339,151 @@ res = @ccall $(mdivtbl.GetTypeRefProps)(
 @show res
 @show rscope[]
 @show rnameLen[]
-println("refname: ", transcode(String, name[begin:rnameLen[]-1]))
+structname = transcode(String, name[begin:rnameLen[]-1])
+println("refname: ", structname)
 println()
 
-# typename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-# rtypenameLen = Ref(ULONG(0))
-# rflags = Ref(DWORD(0))
-# rExtends = Ref(mdToken(0))
-# res = @ccall $(mdivtbl.GetTypeDefProps)(
-#     rpmdi[]::Ptr{IMetaDataImport},
-#     typedref::mdTypeRef,
-#     typename::Ref{Cwchar_t},
-#     length(typename)::ULONG,
-#     rtypenameLen::Ref{ULONG},
-#     rExtends::Ref{mdToken}
-#     )::HRESULT
-# @show res
-# @show rflags[]
-# @show rExtends[]
-# @show rtypenameLen[]
-# println("defname: ", transcode(String, typename[begin:rtypenameLen[]-1]))
-# println()
+rStructToken = Ref(mdToken(0))
+res = @ccall $(mdivtbl.FindTypeDefByName)(
+    pmdi::Ptr{IMetaDataImport}, 
+    structname::Cwstring, 
+    mdTokenNil::mdToken, 
+    rStructToken::Ref{mdToken}
+    )::HRESULT
+@show res
+@show rStructToken[]
+println()
 
-# rscope = Ref(mdToken(0))
-# name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-# rnameLen = Ref(ULONG(0))
-# res = @ccall $(mdivtbl.GetTypeRefProps)(
-#     rpmdi[]::Ptr{IMetaDataImport},
-#     rExtends[]::mdTypeRef,
-#     rscope::Ref{mdToken},
-#     name::Ref{Cwchar_t},
-#     length(name)::ULONG,
-#     rnameLen::Ref{ULONG}
+# function getName(td::mdTypeDef)::String
+#     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+#     rnameLen = Ref(ULONG(0))
+#     rflags = Ref(DWORD(0))
+#     rextends = Ref(mdToken(0))
+#     res = @ccall $(mdivtbl.GetTypeDefProps)(
+#         pmdi::Ptr{IMetaDataImport},
+#         td::mdTypeRef,
+#         name::Ref{Cwchar_t},
+#         length(name)::ULONG,
+#         rnameLen::Ref{ULONG},
+#         rflags::Ref{DWORD},
+#         rextends::Ref{mdToken}
+#         )::HRESULT
+#     return res == S_OK ? transcode(String, name[begin:rnameLen[]-1]) : ""
+# end
+
+function getName(td::mdTypeDef)::String
+    name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rnameLen = Ref(ULONG(0))
+    rflags = Ref(DWORD(0))
+    rextends = Ref(mdToken(0))
+    res = @ccall $(mdivtbl.GetTypeDefProps)(
+        pmdi::Ptr{IMetaDataImport},
+        td::mdTypeRef,
+        name::Ref{Cwchar_t},
+        length(name)::ULONG,
+        rnameLen::Ref{ULONG},
+        rflags::Ref{DWORD},
+        rextends::Ref{mdToken}
+        )::HRESULT
+    return res == S_OK ? transcode(String, name[begin:rnameLen[]-1]) : ""
+end
+
+const mdFieldDef = mdToken
+const UVCP_CONSTANT = Ptr{Cvoid}
+
+function getName(fd::mdFieldDef)::String
+    rclass = Ref(mdTypeDef(0))
+    fieldname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rfieldnameLen = Ref(ULONG(0))
+    rattrs = Ref(DWORD(0))
+    sigBlob = zeros(COR_SIGNATURE, DEFAULT_BUFFER_LEN)
+    rsigBlobLen = Ref(ULONG(0))
+    rcplusTypeFlag = Ref(DWORD(0))
+    rvalue = Ref(UVCP_CONSTANT(0))
+    rvalueLen = Ref(ULONG(0))
+    res = @ccall $(mdivtbl.GetFieldProps)(
+        pmdi::Ptr{IMetaDataImport},
+        fd::mdFieldDef,
+        rclass::Ref{mdTypeDef},
+        fieldname::Ref{Cwchar_t},
+        length(fieldname)::ULONG,
+        rfieldnameLen::Ref{ULONG},
+        rattrs::Ref{DWORD},
+        sigBlob::Ref{COR_SIGNATURE},
+        rsigBlobLen::Ref{ULONG},
+        rcplusTypeFlag::Ref{DWORD},
+        rvalue::Ref{UVCP_CONSTANT},
+        rvalueLen::Ref{ULONG}
+        )::HRESULT
+    return res == S_OK ? transcode(String, fieldname[begin:rfieldnameLen[]-1]) : ""
+end
+
+const HCORENUM = Ptr{Cvoid}
+
+rEnum = Ref(HCORENUM(0))
+fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
+rcTokens = Ref(ULONG(0))
+res = @ccall $(mdivtbl.EnumFields)(
+    pmdi::Ptr{IMetaDataImport}, 
+    rEnum::Ref{Ptr{Cvoid}},
+    rStructToken[]::mdTypeDef,
+    fields::Ref{mdTypeDef},
+    length(fields)::ULONG,
+    rcTokens::Ref{ULONG}
+    )::HRESULT
+@show res
+@show rcTokens[]
+for i = 1:rcTokens[]
+    @show getName(fields[i])
+end
+
+println()
+
+
+# HRESULT EnumFields (
+#    [in, out] HCORENUM    *phEnum,
+#    [in]      mdTypeDef   cl,
+#    [out]     mdFieldDef  rFields[],
+#    [in]      ULONG       cMax,
+#    [out]     ULONG       *pcTokens  
+# ); 
+
+
+
+
+
+
+# const mdFieldDef = mdToken
+# struct COR_FIELD_OFFSET
+#     ridOfField::mdFieldDef  
+#     ulOffset::ULONG  
+# end
+
+# rPacketSize = Ref(DWORD(0))
+# fieldOffsets = Vector{COR_FIELD_OFFSET}(undef, DEFAULT_BUFFER_LEN)
+# rcFieldOffsets = Ref(ULONG(0))
+# rClassSize = Ref(ULONG(0))
+# res = @ccall $(mdivtbl.GetClassLayout)(
+#     pmdi::Ptr{IMetaDataImport},
+#     rStructToken[]::mdTypeRef,
+#     rPacketSize::Ref{DWORD},
+#     fieldOffsets::Ref{COR_FIELD_OFFSET},
+#     length(fieldOffsets)::ULONG,
+#     rcFieldOffsets::Ref{ULONG},
+#     rClassSize::Ref{ULONG}
 #     )::HRESULT
 # @show res
-# @show rnameLen[]
-# println("name: ", transcode(String, name[begin:rnameLen[]-1]))
-# println()
+# @show rcFieldOffsets[]
+# @show rClassSize[]
+
+# HRESULT GetClassLayout  (
+#    [in]  mdTypeDef          td,
+#    [out] DWORD              *pdwPackSize,  
+#    [out] COR_FIELD_OFFSET   rFieldOffset[],  
+#    [in]  ULONG              cMax,  
+#    [out] ULONG              *pcFieldOffset,  
+#    [out] ULONG              *pulClassSize  
+# );
 
 # name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 # rameLen = Ref(ULONG(0))
