@@ -300,7 +300,7 @@ res = @ccall $(mdivtbl.GetMethodProps)(
 @show rmethodNameLen[]
 println("methodName: ", transcode(String, methodName[begin:rmethodNameLen[]-1]))
 @show rsigLen[]
-sig = unsafe_wrap(Vector{UInt8}, Ptr{UInt8}(rpsig[]), rsigLen[])
+sig = unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
 @show sig
 println()
 
@@ -308,7 +308,19 @@ const mdTypeRef = mdToken
 const TYPEDEF_TYPE_FLAG = 0x02000000
 const TYPEREF_TYPE_FLAG = 0x01000000
 
-encoded = UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7])
+function uncompressSig(sig::AbstractVector{COR_SIGNATURE})::UInt32
+    if sig[1] & 0x80 == 0x00
+        return UInt32(sig[1])
+    elseif sig[1] & 0xC0 == 0x80
+        return UInt32(sig[1] & 0x3F) << 8 | UInt32(sig[2])
+    elseif sig[1] & 0xE0 == 0xC0
+        return UInt32(sig[1] & 0x1f) << 24 | UInt32(sig[2]) << 16 | UInt32(sig[3]) << 8 | UInt32(sig[4])
+    end
+    error("Bad signature")
+end
+
+# encoded = UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7])
+encoded = uncompressSig(@view sig[6:7])
 @show encoded
 refDefOrSpec = encoded & 0x03
 @show refDefOrSpec
@@ -391,13 +403,13 @@ end
 const mdFieldDef = mdToken
 const UVCP_CONSTANT = Ptr{Cvoid}
 
-function getName(fd::mdFieldDef)::String
+function fieldProps(fd::mdFieldDef)
     rclass = Ref(mdTypeDef(0))
     fieldname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rfieldnameLen = Ref(ULONG(0))
     rattrs = Ref(DWORD(0))
-    sigBlob = zeros(COR_SIGNATURE, DEFAULT_BUFFER_LEN)
-    rsigBlobLen = Ref(ULONG(0))
+    sigblob = zeros(COR_SIGNATURE, DEFAULT_BUFFER_LEN)
+    rsigbloblen = Ref(ULONG(0))
     rcplusTypeFlag = Ref(DWORD(0))
     rvalue = Ref(UVCP_CONSTANT(0))
     rvalueLen = Ref(ULONG(0))
@@ -409,13 +421,19 @@ function getName(fd::mdFieldDef)::String
         length(fieldname)::ULONG,
         rfieldnameLen::Ref{ULONG},
         rattrs::Ref{DWORD},
-        sigBlob::Ref{COR_SIGNATURE},
-        rsigBlobLen::Ref{ULONG},
+        sigblob::Ref{COR_SIGNATURE},
+        rsigbloblen::Ref{ULONG},
         rcplusTypeFlag::Ref{DWORD},
         rvalue::Ref{UVCP_CONSTANT},
         rvalueLen::Ref{ULONG}
         )::HRESULT
-    return res == S_OK ? transcode(String, fieldname[begin:rfieldnameLen[]-1]) : ""
+    if res == S_OK
+        name = transcode(String, fieldname[begin:rfieldnameLen[]-1])
+        sigblob = sigblob[begin:rsigbloblen[]]
+        return (name=name, sigblob=sigblob, cptype=rcplusTypeFlag[])
+    end
+    
+    return ("", UInt8[],DWORD(0))
 end
 
 const HCORENUM = Ptr{Cvoid}
@@ -434,7 +452,11 @@ res = @ccall $(mdivtbl.EnumFields)(
 @show res
 @show rcTokens[]
 for i = 1:rcTokens[]
-    @show getName(fields[i])
+    fp = fieldProps(fields[i])
+    @show fp.name
+    @show fp.sigblob
+    @show fp.cptype
+    # @show uncompressSig(fp.sigblob[2:end])
 end
 
 println()
@@ -447,11 +469,6 @@ println()
 #    [in]      ULONG       cMax,
 #    [out]     ULONG       *pcTokens  
 # ); 
-
-
-
-
-
 
 # const mdFieldDef = mdToken
 # struct COR_FIELD_OFFSET
