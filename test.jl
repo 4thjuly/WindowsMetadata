@@ -435,15 +435,67 @@ res = @ccall $(mdivtbl.EnumFields)(
 @show res
 @show rcTokens[]
 
+@enum SIG_KIND begin
+   SIG_KIND_FIELD = 0x06 
+end
+
+@enum ELEMENT_TYPE::Byte begin
+    ELEMENT_TYPE_END = 0x00
+    ELEMENT_TYPE_VOID = 0x01
+    ELEMENT_TYPE_BOOLEAN = 0x02
+    ELEMENT_TYPE_CHAR = 0x03
+    ELEMENT_TYPE_I1 = 0x04
+    ELEMENT_TYPE_U1 = 0x05
+    ELEMENT_TYPE_I2 = 0x06
+    ELEMENT_TYPE_U2 = 0x07
+    ELEMENT_TYPE_I4 = 0x08
+    ELEMENT_TYPE_U4 = 0x09
+    ELEMENT_TYPE_I8 = 0x0a
+    ELEMENT_TYPE_U8 = 0x0b
+    ELEMENT_TYPE_R4 = 0x0c
+    ELEMENT_TYPE_R8 = 0x0d
+    ELEMENT_TYPE_STRING = 0x0e
+    ELEMENT_TYPE_PTR = 0x0f # Followed by type
+    ELEMENT_TYPE_BYREF = 0x10 # Followed by type
+    ELEMENT_TYPE_VALUETYPE = 0x11 # Followed by TypeDef or TypeRef token
+    ELEMENT_TYPE_CLASS = 0x12 # Followed by TypeDef or TypeRef token
+    # TBD
+end
+
+function sigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
+    sk::SIG_KIND = SIG_KIND(sigblob[1])
+    et::ELEMENT_TYPE = ELEMENT_TYPE_VOID
+    subtype::ELEMENT_TYPE = ELEMENT_TYPE_VOID
+    tok::mdToken = mdTokenNil
+
+    if sk == SIG_KIND_FIELD
+        et = ELEMENT_TYPE(sigblob[2])
+        if et == ELEMENT_TYPE_PTR
+            subtype = ELEMENT_TYPE(sigblob[3])
+        elseif et == ELEMENT_TYPE_VALUETYPE
+            tok = mdToken(uncompressSig(sigblob[3:end]))
+        elseif et == ELEMENT_TYPE_CLASS
+            tok = mdToken(uncompressSig(sigblob[3:end]))
+        end
+    end
+
+    return (sigkind=sk, elementtype=et, subtype=subtype, token=tok)
+end
+
 for i = 1:rcTokens[]
     fp = fieldProps(fields[i])
     @show fp.name
-    @show fp.sigblob
-    @show fp.cptype
-    @show uncompressSig(fp.sigblob[2:end])
+    # @show fp.sigblob
+    # @show fp.cptype
+    @show sigblobtoTypeInfo(fp.sigblob)
 end
-
 println()
+
+
+
+
+
+# --- TBD ---
 
 # const mdFieldDef = mdToken
 # struct COR_FIELD_OFFSET
