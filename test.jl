@@ -333,13 +333,6 @@ function uncompressSig(sig::AbstractVector{COR_SIGNATURE})::Union{mdTypeRef, mdT
     return 0
 end
 
-# encoded = UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7])
-# encoded = uncompressSig(@view sig[6:7])
-# @show encoded
-# refDefOrSpec = encoded & 0x03
-# @show refDefOrSpec
-# # assume ref
-# typedref = mdTypeRef(TYPEREF_TYPE_FLAG | (encoded >> 2))
 typedref = uncompressSig(@view sig[6:7])
 @show typedref
 
@@ -378,36 +371,37 @@ function getName(mdt::mdToken)
     end
 end
 
-# rscope = Ref(mdToken(0))
-# name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-# rnameLen = Ref(ULONG(0))
-# res = @ccall $(mdivtbl.GetTypeRefProps)(
-#     pmdi::Ptr{IMetaDataImport},
-#     typedref::mdTypeRef,
-#     rscope::Ref{mdToken},
-#     name::Ref{Cwchar_t},
-#     length(name)::ULONG,
-#     rnameLen::Ref{ULONG}
-#     )::HRESULT
-# @show res
-# @show rscope[]
-# @show rnameLen[]
-# structname = transcode(String, name[begin:rnameLen[]-1])
-# println("refname: ", structname)
-# println()
-
-@show getTypeRefName(typedref)
+structname = getTypeRefName(typedref)
+@show structname
 println()
 
-rStructToken = Ref(mdToken(0))
-res = @ccall $(mdivtbl.FindTypeDefByName)(
-    pmdi::Ptr{IMetaDataImport}, 
-    structname::Cwstring, 
-    mdTokenNil::mdToken, 
-    rStructToken::Ref{mdToken}
-    )::HRESULT
-@show res
-@show rStructToken[]
+# rStructToken = Ref(mdToken(0))
+# res = @ccall $(mdivtbl.FindTypeDefByName)(
+#     pmdi::Ptr{IMetaDataImport}, 
+#     structname::Cwstring, 
+#     mdTokenNil::mdToken, 
+#     rStructToken::Ref{mdToken}
+#     )::HRESULT
+# @show res
+# @show rStructToken[]
+# println()
+
+function findTypeDef(name::String)::mdToken
+    rStructToken = Ref(mdToken(0))
+    res = @ccall $(mdivtbl.FindTypeDefByName)(
+        pmdi::Ptr{IMetaDataImport}, 
+        name::Cwstring, 
+        mdTokenNil::mdToken, 
+        rStructToken::Ref{mdToken}
+        )::HRESULT
+    if res == S_OK
+        return rStructToken[]
+    end
+    return mdTokenNil
+end
+
+structToken = findTypeDef(structname)
+@show structToken
 println()
 
 function getTypeDefName(td::mdTypeDef)::String
@@ -465,19 +459,39 @@ end
 
 const HCORENUM = Ptr{Cvoid}
 
-rEnum = Ref(HCORENUM(0))
-fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
-rcTokens = Ref(ULONG(0))
-res = @ccall $(mdivtbl.EnumFields)(
-    pmdi::Ptr{IMetaDataImport}, 
-    rEnum::Ref{HCORENUM},
-    rStructToken[]::mdTypeDef,
-    fields::Ref{mdFieldDef},
-    length(fields)::ULONG,
-    rcTokens::Ref{ULONG}
-    )::HRESULT
-@show res
-@show rcTokens[]
+# rEnum = Ref(HCORENUM(0))
+# fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
+# rcTokens = Ref(ULONG(0))
+# res = @ccall $(mdivtbl.EnumFields)(
+#     pmdi::Ptr{IMetaDataImport}, 
+#     rEnum::Ref{HCORENUM},
+#     rStructToken[]::mdTypeDef,
+#     fields::Ref{mdFieldDef},
+#     length(fields)::ULONG,
+#     rcTokens::Ref{ULONG}
+#     )::HRESULT
+# @show res
+# @show rcTokens[]
+
+function enumFields(tok::mdTypeDef)::Vector{mdFieldDef}
+    rEnum = Ref(HCORENUM(0))
+    fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
+    rcTokens = Ref(ULONG(0))
+    res = @ccall $(mdivtbl.EnumFields)(
+        pmdi::Ptr{IMetaDataImport}, 
+        rEnum::Ref{HCORENUM},
+        tok::mdTypeDef,
+        fields::Ref{mdFieldDef},
+        length(fields)::ULONG,
+        rcTokens::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return fields[begin:rcTokens[]]
+    end
+    return nothing
+end
+
+fields = enumFields(structToken)
 
 @enum SIG_KIND begin
    SIG_KIND_FIELD = 0x06 
@@ -503,6 +517,11 @@ end
     ELEMENT_TYPE_BYREF = 0x10 # Followed by type
     ELEMENT_TYPE_VALUETYPE = 0x11 # Followed by TypeDef or TypeRef token
     ELEMENT_TYPE_CLASS = 0x12 # Followed by TypeDef or TypeRef token
+    ELEMENT_TYPE_VAR = 0x13 # Generic parameter in a generic type definition, represented as number (compressed unsigned integer)
+    ELEMENT_TYPE_ARRAY = 0x14 # type rank boundsCount bound1 … loCount lo1 …
+    ELEMENT_TYPE_GENERICINST = 0x15 # Generic type instantiation. Followed by type type-arg-count type-1 ... type-n
+    ELEMENT_TYPE_TYPEDBYREF = 0x16
+    ELEMENT_TYPE_I = 0x18 # System.IntPtr
     # TBD
 end
 
@@ -525,12 +544,16 @@ function sigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
     return (sigkind=sk, elementtype=et, subtype=subtype)
 end
 
-for i = 1:rcTokens[]
-    fp = fieldProps(fields[i])
-    @show fp.name
-    @show fp.sigblob
-    @show sigblobtoTypeInfo(fp.sigblob)
+function showFields(fields::Vector{mdFieldDef})
+    for field in fields
+        fp = fieldProps(field)
+        @show fp.name
+        @show fp.sigblob
+        @show sigblobtoTypeInfo(fp.sigblob)
+    end
 end
+
+showFields(fields)
 println()
 
 
