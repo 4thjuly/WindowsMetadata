@@ -305,29 +305,43 @@ sig = unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
 println()
 
 const mdTypeRef = mdToken
-const TYPEDEF_TYPE_FLAG = 0x02000000
-const TYPEREF_TYPE_FLAG = 0x01000000
+const mdTypeSpec = mdToken
 
-function uncompressSig(sig::AbstractVector{COR_SIGNATURE})::UInt32
+const TYPEREF_TYPE_FLAG = 0x01000000
+const TYPEDEF_TYPE_FLAG = 0x02000000
+const FIELDDEF_TYPE_FLAG = 0x04000000;
+const TYPESPEC_TYPE_FLAG = 0x1b000000
+
+function uncompressSig(sig::AbstractVector{COR_SIGNATURE})::Union{mdTypeRef, mdTypeDef, mdTypeSpec}
+    ctok::UInt32 = UInt32(0)
     if sig[1] & 0x80 == 0x00
-        return UInt32(sig[1])
+        ctok = UInt32(sig[1])
     elseif sig[1] & 0xC0 == 0x80
-        return UInt32(sig[1] & 0x3F) << 8 | UInt32(sig[2])
+        ctok = UInt32(sig[1] & 0x3F) << 8 | UInt32(sig[2])
     elseif sig[1] & 0xE0 == 0xC0
-        return UInt32(sig[1] & 0x1f) << 24 | UInt32(sig[2]) << 16 | UInt32(sig[3]) << 8 | UInt32(sig[4])
+        ctok = UInt32(sig[1] & 0x1f) << 24 | UInt32(sig[2]) << 16 | UInt32(sig[3]) << 8 | UInt32(sig[4])
+    else
+        error("Bad signature")
     end
-    error("Bad signature")
+    if ctok & 0x03 == 0x00
+        return mdTypeDef(TYPEDEF_TYPE_FLAG | (ctok >> 2))
+    elseif ctok & 0x03 == 0x01
+        return mdTypeRef(TYPEREF_TYPE_FLAG | (ctok >> 2))
+    elseif ctok & 0x03 == 0x02
+        return mdTypeDef(TYPESPEC_TYPE_FLAG | (ctok >> 2))
+    end
+    return 0
 end
 
 # encoded = UInt32(sig[6] & 0x3F) << 8 | UInt32(sig[7])
-encoded = uncompressSig(@view sig[6:7])
-@show encoded
-refDefOrSpec = encoded & 0x03
-@show refDefOrSpec
-# assume ref
-typedref = mdTypeRef(TYPEREF_TYPE_FLAG | (encoded >> 2))
+# encoded = uncompressSig(@view sig[6:7])
+# @show encoded
+# refDefOrSpec = encoded & 0x03
+# @show refDefOrSpec
+# # assume ref
+# typedref = mdTypeRef(TYPEREF_TYPE_FLAG | (encoded >> 2))
+typedref = uncompressSig(@view sig[6:7])
 @show typedref
-println()
 
 # check
 valid = @ccall $(mdivtbl.IsValidToken)(
@@ -335,24 +349,54 @@ valid = @ccall $(mdivtbl.IsValidToken)(
     typedref::mdToken
     )::Bool
 @show valid
-println()
 
-rscope = Ref(mdToken(0))
-name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-rnameLen = Ref(ULONG(0))
-res = @ccall $(mdivtbl.GetTypeRefProps)(
-    pmdi::Ptr{IMetaDataImport},
-    typedref::mdTypeRef,
-    rscope::Ref{mdToken},
-    name::Ref{Cwchar_t},
-    length(name)::ULONG,
-    rnameLen::Ref{ULONG}
-    )::HRESULT
-@show res
-@show rscope[]
-@show rnameLen[]
-structname = transcode(String, name[begin:rnameLen[]-1])
-println("refname: ", structname)
+function getTypeRefName(tr::mdTypeRef)::String
+    rscope = Ref(mdToken(0))
+    name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rnameLen = Ref(ULONG(0))
+    res = @ccall $(mdivtbl.GetTypeRefProps)(
+        pmdi::Ptr{IMetaDataImport},
+        tr::mdTypeRef,
+        rscope::Ref{mdToken},
+        name::Ref{Cwchar_t},
+        length(name)::ULONG,
+        rnameLen::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return transcode(String, name[begin:rnameLen[]-1])
+    end
+    return ""
+end
+
+function getName(mdt::mdToken)
+    if mdt & TYPEDEF_TYPE_FLAG == TYPEDEF_TYPE_FLAG
+        return getTypeDefName(mdt)
+    elseif mdt & TYPEREF_TYPE_FLAG == TYPEREF_TYPE_FLAG
+        return getTypeRefName(mdt)
+    else
+        return ""
+    end
+end
+
+# rscope = Ref(mdToken(0))
+# name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+# rnameLen = Ref(ULONG(0))
+# res = @ccall $(mdivtbl.GetTypeRefProps)(
+#     pmdi::Ptr{IMetaDataImport},
+#     typedref::mdTypeRef,
+#     rscope::Ref{mdToken},
+#     name::Ref{Cwchar_t},
+#     length(name)::ULONG,
+#     rnameLen::Ref{ULONG}
+#     )::HRESULT
+# @show res
+# @show rscope[]
+# @show rnameLen[]
+# structname = transcode(String, name[begin:rnameLen[]-1])
+# println("refname: ", structname)
+# println()
+
+@show getTypeRefName(typedref)
 println()
 
 rStructToken = Ref(mdToken(0))
@@ -366,7 +410,7 @@ res = @ccall $(mdivtbl.FindTypeDefByName)(
 @show rStructToken[]
 println()
 
-function getName(td::mdTypeDef)::String
+function getTypeDefName(td::mdTypeDef)::String
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rnameLen = Ref(ULONG(0))
     rflags = Ref(DWORD(0))
@@ -465,28 +509,26 @@ end
 function sigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
     sk::SIG_KIND = SIG_KIND(sigblob[1])
     et::ELEMENT_TYPE = ELEMENT_TYPE_VOID
-    subtype::ELEMENT_TYPE = ELEMENT_TYPE_VOID
-    tok::mdToken = mdTokenNil
+    subtype::Union{ELEMENT_TYPE, mdToken} = ELEMENT_TYPE_VOID
 
     if sk == SIG_KIND_FIELD
         et = ELEMENT_TYPE(sigblob[2])
         if et == ELEMENT_TYPE_PTR
             subtype = ELEMENT_TYPE(sigblob[3])
         elseif et == ELEMENT_TYPE_VALUETYPE
-            tok = mdToken(uncompressSig(sigblob[3:end]))
+            subtype = mdToken(uncompressSig(sigblob[3:end]))
         elseif et == ELEMENT_TYPE_CLASS
-            tok = mdToken(uncompressSig(sigblob[3:end]))
+            subtype = mdToken(uncompressSig(sigblob[3:end]))
         end
     end
 
-    return (sigkind=sk, elementtype=et, subtype=subtype, token=tok)
+    return (sigkind=sk, elementtype=et, subtype=subtype)
 end
 
 for i = 1:rcTokens[]
     fp = fieldProps(fields[i])
     @show fp.name
-    # @show fp.sigblob
-    # @show fp.cptype
+    @show fp.sigblob
     @show sigblobtoTypeInfo(fp.sigblob)
 end
 println()
