@@ -366,23 +366,6 @@ res = @ccall $(mdivtbl.FindTypeDefByName)(
 @show rStructToken[]
 println()
 
-# function getName(td::mdTypeDef)::String
-#     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rnameLen = Ref(ULONG(0))
-#     rflags = Ref(DWORD(0))
-#     rextends = Ref(mdToken(0))
-#     res = @ccall $(mdivtbl.GetTypeDefProps)(
-#         pmdi::Ptr{IMetaDataImport},
-#         td::mdTypeRef,
-#         name::Ref{Cwchar_t},
-#         length(name)::ULONG,
-#         rnameLen::Ref{ULONG},
-#         rflags::Ref{DWORD},
-#         rextends::Ref{mdToken}
-#         )::HRESULT
-#     return res == S_OK ? transcode(String, name[begin:rnameLen[]-1]) : ""
-# end
-
 function getName(td::mdTypeDef)::String
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rnameLen = Ref(ULONG(0))
@@ -408,7 +391,7 @@ function fieldProps(fd::mdFieldDef)
     fieldname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rfieldnameLen = Ref(ULONG(0))
     rattrs = Ref(DWORD(0))
-    sigblob = zeros(COR_SIGNATURE, DEFAULT_BUFFER_LEN)
+    rpsigblob = Ref(Ptr{COR_SIGNATURE}(0))
     rsigbloblen = Ref(ULONG(0))
     rcplusTypeFlag = Ref(DWORD(0))
     rvalue = Ref(UVCP_CONSTANT(0))
@@ -421,7 +404,7 @@ function fieldProps(fd::mdFieldDef)
         length(fieldname)::ULONG,
         rfieldnameLen::Ref{ULONG},
         rattrs::Ref{DWORD},
-        sigblob::Ref{COR_SIGNATURE},
+        rpsigblob::Ref{Ptr{COR_SIGNATURE}},
         rsigbloblen::Ref{ULONG},
         rcplusTypeFlag::Ref{DWORD},
         rvalue::Ref{UVCP_CONSTANT},
@@ -429,7 +412,7 @@ function fieldProps(fd::mdFieldDef)
         )::HRESULT
     if res == S_OK
         name = transcode(String, fieldname[begin:rfieldnameLen[]-1])
-        sigblob = sigblob[begin:rsigbloblen[]]
+        sigblob = unsafe_wrap(Vector{COR_SIGNATURE}, rpsigblob[], rsigbloblen[])
         return (name=name, sigblob=sigblob, cptype=rcplusTypeFlag[])
     end
     
@@ -443,32 +426,24 @@ fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
 rcTokens = Ref(ULONG(0))
 res = @ccall $(mdivtbl.EnumFields)(
     pmdi::Ptr{IMetaDataImport}, 
-    rEnum::Ref{Ptr{Cvoid}},
+    rEnum::Ref{HCORENUM},
     rStructToken[]::mdTypeDef,
-    fields::Ref{mdTypeDef},
+    fields::Ref{mdFieldDef},
     length(fields)::ULONG,
     rcTokens::Ref{ULONG}
     )::HRESULT
 @show res
 @show rcTokens[]
+
 for i = 1:rcTokens[]
     fp = fieldProps(fields[i])
     @show fp.name
     @show fp.sigblob
     @show fp.cptype
-    # @show uncompressSig(fp.sigblob[2:end])
+    @show uncompressSig(fp.sigblob[2:end])
 end
 
 println()
-
-
-# HRESULT EnumFields (
-#    [in, out] HCORENUM    *phEnum,
-#    [in]      mdTypeDef   cl,
-#    [out]     mdFieldDef  rFields[],
-#    [in]      ULONG       cMax,
-#    [out]     ULONG       *pcTokens  
-# ); 
 
 # const mdFieldDef = mdToken
 # struct COR_FIELD_OFFSET
