@@ -1,4 +1,3 @@
-
 import Base.@kwdef
 
 const DEFAULT_BUFFER_LEN = 1024
@@ -264,16 +263,6 @@ println("Param: ", transcode(String, paramName[begin:rparamNameLen[]-1]))
 const mdSignature = mdToken
 const COR_SIGNATURE = UInt8
 
-# rpsig = Ref(Ptr{COR_SIGNATURE}(C_NULL))
-# rsigLen = Ref(ULONG(0))
-# res = @ccall $(mdivtbl.GetSigFromToken)(
-#     rpmdi[]::Ptr{IMetaDataImport},
-#     rmethodDef[]::mdSignature,
-#     rpsig::Ref{Ptr{COR_SIGNATURE}},
-#     rsigLen::Ref{ULONG}
-#     )::HRESULT
-# @show res
-
 rclass = Ref(mdTypeDef(0))
 methodName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rmethodNameLen = Ref(ULONG(0))
@@ -375,17 +364,6 @@ structname = getTypeRefName(typedref)
 @show structname
 println()
 
-# rStructToken = Ref(mdToken(0))
-# res = @ccall $(mdivtbl.FindTypeDefByName)(
-#     pmdi::Ptr{IMetaDataImport}, 
-#     structname::Cwstring, 
-#     mdTokenNil::mdToken, 
-#     rStructToken::Ref{mdToken}
-#     )::HRESULT
-# @show res
-# @show rStructToken[]
-# println()
-
 function findTypeDef(name::String)::mdToken
     rStructToken = Ref(mdToken(0))
     res = @ccall $(mdivtbl.FindTypeDefByName)(
@@ -458,20 +436,6 @@ function fieldProps(fd::mdFieldDef)
 end
 
 const HCORENUM = Ptr{Cvoid}
-
-# rEnum = Ref(HCORENUM(0))
-# fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
-# rcTokens = Ref(ULONG(0))
-# res = @ccall $(mdivtbl.EnumFields)(
-#     pmdi::Ptr{IMetaDataImport}, 
-#     rEnum::Ref{HCORENUM},
-#     rStructToken[]::mdTypeDef,
-#     fields::Ref{mdFieldDef},
-#     length(fields)::ULONG,
-#     rcTokens::Ref{ULONG}
-#     )::HRESULT
-# @show res
-# @show rcTokens[]
 
 function enumFields(tok::mdTypeDef)::Vector{mdFieldDef}
     rEnum = Ref(HCORENUM(0))
@@ -556,58 +520,7 @@ end
 showFields(fields)
 println()
 
-
-
-
-
-# --- TBD ---
-
-# const mdFieldDef = mdToken
-# struct COR_FIELD_OFFSET
-#     ridOfField::mdFieldDef  
-#     ulOffset::ULONG  
-# end
-
-# rPacketSize = Ref(DWORD(0))
-# fieldOffsets = Vector{COR_FIELD_OFFSET}(undef, DEFAULT_BUFFER_LEN)
-# rcFieldOffsets = Ref(ULONG(0))
-# rClassSize = Ref(ULONG(0))
-# res = @ccall $(mdivtbl.GetClassLayout)(
-#     pmdi::Ptr{IMetaDataImport},
-#     rStructToken[]::mdTypeRef,
-#     rPacketSize::Ref{DWORD},
-#     fieldOffsets::Ref{COR_FIELD_OFFSET},
-#     length(fieldOffsets)::ULONG,
-#     rcFieldOffsets::Ref{ULONG},
-#     rClassSize::Ref{ULONG}
-#     )::HRESULT
-# @show res
-# @show rcFieldOffsets[]
-# @show rClassSize[]
-
-# HRESULT GetClassLayout  (
-#    [in]  mdTypeDef          td,
-#    [out] DWORD              *pdwPackSize,  
-#    [out] COR_FIELD_OFFSET   rFieldOffset[],  
-#    [in]  ULONG              cMax,  
-#    [out] ULONG              *pcFieldOffset,  
-#    [out] ULONG              *pulClassSize  
-# );
-
-# name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-# rameLen = Ref(ULONG(0))
-# rflags = Ref(DWORD(0))
-# res = @ccall $(mdivtbl.GetTypeDefProps)(
-#     rpmdi[]::Ptr{IMetaDataImport},
-#     rExtends[]::mdTypeRef,
-#     typename::Ref{Cwchar_t},
-#     length(typename)::ULONG,
-#     rtypenameLen::Ref{ULONG},
-#     rExtends::Ref{mdToken}
-#     )::HRESULT
-# @show res
-# @show rflags[]
-# @show rExtends[]
-# @show rtypenameLen[]
-# println("typename: ", transcode(String, typename[begin:rtypenameLen[]-1]))
-# println()
+# drill in to last field
+name = ((fields[end] |> fieldProps).sigblob |> sigblobtoTypeInfo).subtype |> getName
+@show name
+name |> findTypeDef |> enumFields |> showFields
