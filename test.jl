@@ -432,7 +432,7 @@ function fieldProps(fd::mdFieldDef)
         return (name=name, sigblob=sigblob, cptype=rcplusTypeFlag[])
     end
     
-    return ("", UInt8[],DWORD(0))
+    return ("", UInt8[], DWORD(0))
 end
 
 const HCORENUM = Ptr{Cvoid}
