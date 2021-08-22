@@ -60,6 +60,15 @@ struct IMetaDataDispenser
     pvtbl::Ptr{IMetaDataDispenserVtbl}
 end
 
+# struct COMObject{T}
+#     pvtbl::Ptr{T}
+# end
+
+struct COMWrapper{T1, T2}
+    punk::Ptr{T1}
+    vtbl::T2
+end
+
 function metadataDispenser()
     rpmdd = Ref(Ptr{IMetaDataDispenser}(C_NULL))
     res = @ccall "Rometadata".MetaDataGetDispenser( 
@@ -71,7 +80,7 @@ function metadataDispenser()
         pmdd = rpmdd[]
         mdd = unsafe_load(pmdd)
         vtbl = unsafe_load(mdd.pvtbl)
-        return (pmdd = pmdd, vtbl=vtbl)
+        return COMWrapper{IMetaDataDispenser, IMetaDataDispenserVtbl}(pmdd, vtbl)
     end
     throw(DomainError(res))
 end
@@ -152,7 +161,7 @@ const CorOpenFlags_ofRead = 0x00000000;
 
 rpmdi = Ref(Ptr{IMetaDataImport}(C_NULL)) 
 res = @ccall $(mdd.vtbl.OpenScope)(
-    mdd.pmdd::Ref{IMetaDataDispenser}, 
+    mdd.punk::Ref{IMetaDataDispenser}, 
     "Windows.Win32.winmd"::Cwstring,
     CorOpenFlags_ofRead::Cuint, 
     Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
