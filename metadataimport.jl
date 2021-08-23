@@ -229,35 +229,45 @@ const mdMethodDef = mdToken
 const DWORD = UInt32
 const mdModuleRef = mdToken
 
-rflags = Ref(DWORD(0))
-importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-rnameLen = Ref(ULONG(0))
-rmoduleRef = Ref(mdModuleRef(0))
-res = @ccall $(mdi.vtbl.GetPinvokeMap)(
-    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-    methodDef::mdMethodDef, 
-    rflags::Ref{DWORD},
-    importname::Ref{Cwchar_t},
-    length(importname)::ULONG, 
-    rnameLen::Ref{ULONG}, 
-    rmoduleRef::Ref{mdModuleRef}
-    )::HRESULT
-@show res
-@show rflags[]
-@show rnameLen[]
-println("API: ", transcode(String, importname[begin:rnameLen[]-1]))
+function getPInvokeMap(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef)
+    rflags = Ref(DWORD(0))
+    importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rnameLen = Ref(ULONG(0))
+    rmoduleRef = Ref(mdModuleRef(0))
+    res = @ccall $(mdi.vtbl.GetPinvokeMap)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        md::mdMethodDef, 
+        rflags::Ref{DWORD},
+        importname::Ref{Cwchar_t},
+        length(importname)::ULONG, 
+        rnameLen::Ref{ULONG}, 
+        rmoduleRef::Ref{mdModuleRef}
+        )::HRESULT
+    if res == S_OK
+        return (rmoduleRef[], transcode(String, importname[begin:rnameLen[]-1]))
+    end
+    return (mdTokenNil, "")
+end
 
-modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-rmodulanameLen = Ref(ULONG(0))
-res = @ccall $(mdi.vtbl.GetModuleRefProps)(
-    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-    rmoduleRef[]::mdModuleRef,
-    modulename::Ref{Cwchar_t},
-    length(modulename)::ULONG,
-    rmodulanameLen::Ref{ULONG}
-    )::HRESULT
-@show res
-println("Module: ", transcode(String, modulename[begin:rmodulanameLen[]-1]))
+(moduleref, importname) = getPInvokeMap(mdi, methodDef)
+
+function getModuleRefProps(mdi::COMWrapper{IMetaDataImport}, mr::mdModuleRef)
+    modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rmodulanameLen = Ref(ULONG(0))
+    res = @ccall $(mdi.vtbl.GetModuleRefProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        mr::mdModuleRef,
+        modulename::Ref{Cwchar_t},
+        length(modulename)::ULONG,
+        rmodulanameLen::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return transcode(String, modulename[begin:rmodulanameLen[]-1])
+    end
+    return ""
+end
+
+moduleName = getModuleRefProps(mdi, moduleref)
 
 const mdParamDef = mdToken
 
