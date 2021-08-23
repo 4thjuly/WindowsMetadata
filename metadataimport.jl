@@ -197,16 +197,6 @@ end
 
 tdWAMApis = findTypeDef(mdi, "Windows.Win32.WindowsAndMessaging.Apis")
 
-# rtypetoken = Ref(mdToken(0))
-# res = @ccall $(mdivtbl.FindTypeDefByName)(
-#     pmdi::Ptr{IMetaDataImport}, 
-#     "Windows.Win32.WindowsAndMessaging.Apis"::Cwstring, 
-#     mdTokenNil::mdToken, 
-#     rtypetoken::Ref{mdToken}
-#     )::HRESULT
-# @show res
-# dump(rtypetoken[])
-
 function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName::String)
     rmethodDef = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindMethod)(
@@ -224,6 +214,8 @@ function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName:
 end
 
 methodDef = findMethod(mdi, tdWAMApis, "RegisterClassExW")
+@show methodDef
+println()
 
 const mdMethodDef = mdToken
 const DWORD = UInt32
@@ -250,6 +242,8 @@ function getPInvokeMap(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef)
 end
 
 (moduleref, importname) = getPInvokeMap(mdi, methodDef)
+@show importname
+println()
 
 function getModuleRefProps(mdi::COMWrapper{IMetaDataImport}, mr::mdModuleRef)
     modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
@@ -268,76 +262,101 @@ function getModuleRefProps(mdi::COMWrapper{IMetaDataImport}, mr::mdModuleRef)
 end
 
 moduleName = getModuleRefProps(mdi, moduleref)
+@show moduleName
+println()
 
 const mdParamDef = mdToken
 
-rparamDef = Ref(mdParamDef(0))
-res = @ccall $(mdi.vtbl.GetParamForMethodIndex)(
-    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-    methodDef::mdMethodDef,
-    1::ULONG,
-    rparamDef::Ref{mdParamDef}
-)::HRESULT
-@show res
-@show rparamDef[]
-
-paramName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-rparamMethodDef = Ref(mdMethodDef(0))
-rparamNameLen = Ref(ULONG(0))
-rseq = Ref(ULONG(0))
-rattr = Ref(DWORD(0))
-rcplustypeFlag = Ref(DWORD(0))
-rpvalue = Ptr{Cvoid}(0)
-rcchValue = Ref(ULONG(0))
-res = @ccall $(mdi.vtbl.GetParamProps)(
-    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-    rparamDef[]::mdParamDef,
-    rparamMethodDef::Ref{mdMethodDef},
-    rseq::Ref{ULONG},
-    paramName::Ref{Cwchar_t},
-    length(paramName)::ULONG,
-    rparamNameLen::Ptr{ULONG},
-    rattr::Ptr{DWORD},
-    rcplustypeFlag::Ptr{DWORD},
-    rpvalue::Ptr{Cvoid},
-    rcchValue::Ptr{ULONG}
+function getParamForMethodIndex(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef, i::Int)
+    rparamDef = Ref(mdParamDef(0))
+    res = @ccall $(mdi.vtbl.GetParamForMethodIndex)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        md::mdMethodDef,
+        ULONG(i)::ULONG,
+        rparamDef::Ref{mdParamDef}
     )::HRESULT
-@show res
-@show rparamMethodDef[]
-@show rseq[]
-@show rparamNameLen[]
-println("Param: ", transcode(String, paramName[begin:rparamNameLen[]-1]))
+    if res == S_OK
+        return rparamDef[]
+    end
+    return mdTokenNil
+end
+
+paramDef = getParamForMethodIndex(mdi, methodDef, 1) 
+
+function getParamProps(mdi::COMWrapper{IMetaDataImport}, paramDef::mdParamDef)
+    paramName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rparamMethodDef = Ref(mdMethodDef(0))
+    rparamNameLen = Ref(ULONG(0))
+    rseq = Ref(ULONG(0))
+    rattr = Ref(DWORD(0))
+    rcplustypeFlag = Ref(DWORD(0))
+    rpvalue = Ptr{Cvoid}(0)
+    rcchValue = Ref(ULONG(0))
+    res = @ccall $(mdi.vtbl.GetParamProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        paramDef::mdParamDef,
+        rparamMethodDef::Ref{mdMethodDef},
+        rseq::Ref{ULONG},
+        paramName::Ref{Cwchar_t},
+        length(paramName)::ULONG,
+        rparamNameLen::Ptr{ULONG},
+        rattr::Ptr{DWORD},
+        rcplustypeFlag::Ptr{DWORD},
+        rpvalue::Ptr{Cvoid},
+        rcchValue::Ptr{ULONG}
+        )::HRESULT
+    # @show res
+    # @show rparamMethodDef[]
+    # @show rseq[]
+    # @show rparamNameLen[]
+    # println("Param: ", transcode(String, paramName[begin:rparamNameLen[]-1]))
+    if res == S_OK
+        return transcode(String, paramName[begin:rparamNameLen[]-1])
+    end
+    return ""
+end
+
+paramName = getParamProps(mdi, paramDef)
+@show paramName
+println()
 
 const mdSignature = mdToken
 const COR_SIGNATURE = UInt8
 
-rclass = Ref(mdTypeDef(0))
-methodName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-rmethodNameLen = Ref(ULONG(0))
-rattr = Ref(DWORD(0))
-rpsig = Ref(Ptr{COR_SIGNATURE}(C_NULL))
-rsigLen = Ref(ULONG(0))
-rrva = Ref(ULONG(0))
-rflags = Ref(DWORD(0))
-res = @ccall $(mdi.vtbl.GetMethodProps)(
-    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-    methodDef::mdMethodDef,
-    rclass::Ref{mdTypeDef},
-    methodName::Ref{Cwchar_t},
-    length(methodName)::ULONG,
-    rmethodNameLen::Ref{ULONG},
-    rattr::Ref{DWORD},
-    rpsig::Ref{Ptr{COR_SIGNATURE}},
-    rsigLen::Ref{ULONG},
-    rrva::Ref{ULONG},
-    rflags::Ref{DWORD}
-    )::HRESULT
-@show res
-@show rclass[]
-@show rmethodNameLen[]
-println("methodName: ", transcode(String, methodName[begin:rmethodNameLen[]-1]))
-@show rsigLen[]
-sig = unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
+function getMethodProps(mdi::COMWrapper{IMetaDataImport}, methodDef::mdMethodDef)
+    rclass = Ref(mdTypeDef(0))
+    methodName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rmethodNameLen = Ref(ULONG(0))
+    rattr = Ref(DWORD(0))
+    rpsig = Ref(Ptr{COR_SIGNATURE}(C_NULL))
+    rsigLen = Ref(ULONG(0))
+    rrva = Ref(ULONG(0))
+    rflags = Ref(DWORD(0))
+    res = @ccall $(mdi.vtbl.GetMethodProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        methodDef::mdMethodDef,
+        rclass::Ref{mdTypeDef},
+        methodName::Ref{Cwchar_t},
+        length(methodName)::ULONG,
+        rmethodNameLen::Ref{ULONG},
+        rattr::Ref{DWORD},
+        rpsig::Ref{Ptr{COR_SIGNATURE}},
+        rsigLen::Ref{ULONG},
+        rrva::Ref{ULONG},
+        rflags::Ref{DWORD}
+        )::HRESULT
+    # @show res
+    # @show rclass[]
+    # @show rmethodNameLen[]
+    # println("methodName: ", transcode(String, methodName[begin:rmethodNameLen[]-1]))
+    # @show rsigLen[]
+    if res == S_OK
+        return unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
+    end
+    throw(DomainError(res))
+end
+
+sig = getMethodProps(mdi, methodDef)
 @show sig
 println()
 
