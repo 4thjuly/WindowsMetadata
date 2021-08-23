@@ -83,7 +83,7 @@ end
 
 mdd = metadataDispenser()
 
-struct IMetaDataImportVtbl
+struct IMetaDataImport
     iUnknown::IUnknown
     CloseEnum::Ptr{Cvoid}         
     CountEnum::Ptr{Cvoid} 
@@ -155,18 +155,25 @@ end
 
 const CorOpenFlags_ofRead = 0x00000000;
 
-rpmdi = Ref(Ptr{IMetaDataImport}(C_NULL)) 
-res = @ccall $(mdd.vtbl.OpenScope)(
-    mdd.punk::Ref{COMObject{IMetaDataDispenser}}, 
-    "Windows.Win32.winmd"::Cwstring,
-    CorOpenFlags_ofRead::Cuint, 
-    Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
-    rpmdi::Ref{Ptr{IMetaDataImport}}
-    )::HRESULT
-@show res
-pmdi = rpmdi[]
-mdi = unsafe_load(pmdi)
-mdivtbl = unsafe_load(mdi.pvtbl)
+function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
+    rpmdi = Ref(Ptr{COMObject{IMetaDataImport}}(C_NULL))
+    res = @ccall $(mdd.vtbl.OpenScope)(
+        mdd.punk::Ref{COMObject{IMetaDataDispenser}}, 
+        "Windows.Win32.winmd"::Cwstring,
+        CorOpenFlags_ofRead::Cuint, 
+        Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
+        rpmdi::Ref{Ptr{COMObject{IMetaDataImport}}}
+        )::HRESULT
+    if res == S_OK
+        pmdi = rpmdi[]
+        mdi = unsafe_load(pmdi)
+        vtbl = unsafe_load(mdi.pvtbl)
+        return COMWrapper{IMetaDataImport}(pmdi, vtbl)
+    end
+    throw(DomainError(res))
+end
+
+mdi = metadataImport(mdd)
 
 const ULONG32 = UInt32
 const mdToken = ULONG32
@@ -174,27 +181,49 @@ const mdTypeDef = mdToken
 const mdTokenNil = mdToken(0)
 const ULONG = UInt32
 
-rtypetoken = Ref(mdToken(0))
-res = @ccall $(mdivtbl.FindTypeDefByName)(
-    pmdi::Ptr{IMetaDataImport}, 
-    "Windows.Win32.WindowsAndMessaging.Apis"::Cwstring, 
-    mdTokenNil::mdToken, 
-    rtypetoken::Ref{mdToken}
-    )::HRESULT
-@show res
-dump(rtypetoken[])
+function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
+    rStructToken = Ref(mdToken(0))
+    res = @ccall $(mdi.vtbl.FindTypeDefByName)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        name::Cwstring, 
+        mdTokenNil::mdToken, 
+        rStructToken::Ref{mdToken}
+        )::HRESULT
+    if res == S_OK
+        return rStructToken[]
+    end
+    return mdTokenNil
+end
 
-rmethodDef = Ref(mdToken(0))
-res = @ccall $(mdivtbl.FindMethod)(
-    pmdi::Ptr{IMetaDataImport}, 
-    rtypetoken[]::mdToken, 
-    "RegisterClassExW"::Cwstring, 
-    C_NULL::Ref{Cvoid}, 
-    0::ULONG, 
-    rmethodDef::Ref{mdToken}
-    )::HRESULT 
-@show res
-dump(rmethodDef[])
+tdWAMApis = findTypeDef(mdi, "Windows.Win32.WindowsAndMessaging.Apis")
+
+# rtypetoken = Ref(mdToken(0))
+# res = @ccall $(mdivtbl.FindTypeDefByName)(
+#     pmdi::Ptr{IMetaDataImport}, 
+#     "Windows.Win32.WindowsAndMessaging.Apis"::Cwstring, 
+#     mdTokenNil::mdToken, 
+#     rtypetoken::Ref{mdToken}
+#     )::HRESULT
+# @show res
+# dump(rtypetoken[])
+
+function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName::String)
+    rmethodDef = Ref(mdToken(0))
+    res = @ccall $(mdi.vtbl.FindMethod)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        td::mdTypeDef,
+        methodName::Cwstring, 
+        C_NULL::Ref{Cvoid}, 
+        0::ULONG, 
+        rmethodDef::Ref{mdToken}
+        )::HRESULT 
+    if res == S_OK
+        return rmethodDef[]
+    end
+    return mdTokenNil
+end
+
+methodDef = findMethod(mdi, tdWAMApis, "RegisterClassExW")
 
 const mdMethodDef = mdToken
 const DWORD = UInt32
@@ -204,9 +233,9 @@ rflags = Ref(DWORD(0))
 importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rnameLen = Ref(ULONG(0))
 rmoduleRef = Ref(mdModuleRef(0))
-res = @ccall $(mdivtbl.GetPinvokeMap)(
-    pmdi::Ptr{IMetaDataImport}, 
-    rmethodDef[]::mdMethodDef, 
+res = @ccall $(mdi.vtbl.GetPinvokeMap)(
+    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+    methodDef::mdMethodDef, 
     rflags::Ref{DWORD},
     importname::Ref{Cwchar_t},
     length(importname)::ULONG, 
@@ -220,8 +249,8 @@ println("API: ", transcode(String, importname[begin:rnameLen[]-1]))
 
 modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 rmodulanameLen = Ref(ULONG(0))
-res = @ccall $(mdivtbl.GetModuleRefProps)(
-    pmdi::Ptr{IMetaDataImport}, 
+res = @ccall $(mdi.vtbl.GetModuleRefProps)(
+    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
     rmoduleRef[]::mdModuleRef,
     modulename::Ref{Cwchar_t},
     length(modulename)::ULONG,
@@ -233,9 +262,9 @@ println("Module: ", transcode(String, modulename[begin:rmodulanameLen[]-1]))
 const mdParamDef = mdToken
 
 rparamDef = Ref(mdParamDef(0))
-res = @ccall $(mdivtbl.GetParamForMethodIndex)(
-    pmdi::Ptr{IMetaDataImport},
-    rmethodDef[]::mdMethodDef,
+res = @ccall $(mdi.vtbl.GetParamForMethodIndex)(
+    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+    methodDef::mdMethodDef,
     1::ULONG,
     rparamDef::Ref{mdParamDef}
 )::HRESULT
@@ -250,8 +279,8 @@ rattr = Ref(DWORD(0))
 rcplustypeFlag = Ref(DWORD(0))
 rpvalue = Ptr{Cvoid}(0)
 rcchValue = Ref(ULONG(0))
-res = @ccall $(mdivtbl.GetParamProps)(
-    pmdi::Ptr{IMetaDataImport},
+res = @ccall $(mdi.vtbl.GetParamProps)(
+    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
     rparamDef[]::mdParamDef,
     rparamMethodDef::Ref{mdMethodDef},
     rseq::Ref{ULONG},
@@ -280,9 +309,9 @@ rpsig = Ref(Ptr{COR_SIGNATURE}(C_NULL))
 rsigLen = Ref(ULONG(0))
 rrva = Ref(ULONG(0))
 rflags = Ref(DWORD(0))
-res = @ccall $(mdivtbl.GetMethodProps)(
-    pmdi::Ptr{IMetaDataImport},
-    rmethodDef[]::mdMethodDef,
+res = @ccall $(mdi.vtbl.GetMethodProps)(
+    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+    methodDef::mdMethodDef,
     rclass::Ref{mdTypeDef},
     methodName::Ref{Cwchar_t},
     length(methodName)::ULONG,
@@ -335,8 +364,8 @@ typedref = uncompressSig(@view sig[6:7])
 @show typedref
 
 # check
-valid = @ccall $(mdivtbl.IsValidToken)(
-    pmdi::Ptr{IMetaDataImport},
+valid = @ccall $(mdi.vtbl.IsValidToken)(
+    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
     typedref::mdToken
     )::Bool
 @show valid
@@ -345,8 +374,8 @@ function getTypeRefName(tr::mdTypeRef)::String
     rscope = Ref(mdToken(0))
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rnameLen = Ref(ULONG(0))
-    res = @ccall $(mdivtbl.GetTypeRefProps)(
-        pmdi::Ptr{IMetaDataImport},
+    res = @ccall $(mdi.vtbl.GetTypeRefProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
         tr::mdTypeRef,
         rscope::Ref{mdToken},
         name::Ref{Cwchar_t},
@@ -375,8 +404,8 @@ println()
 
 function findTypeDef(name::String)::mdToken
     rStructToken = Ref(mdToken(0))
-    res = @ccall $(mdivtbl.FindTypeDefByName)(
-        pmdi::Ptr{IMetaDataImport}, 
+    res = @ccall $(mdi.vtbl.FindTypeDefByName)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
         name::Cwstring, 
         mdTokenNil::mdToken, 
         rStructToken::Ref{mdToken}
@@ -396,8 +425,8 @@ function getTypeDefName(td::mdTypeDef)::String
     rnameLen = Ref(ULONG(0))
     rflags = Ref(DWORD(0))
     rextends = Ref(mdToken(0))
-    res = @ccall $(mdivtbl.GetTypeDefProps)(
-        pmdi::Ptr{IMetaDataImport},
+    res = @ccall $(mdi.vtbl.GetTypeDefProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
         td::mdTypeRef,
         name::Ref{Cwchar_t},
         length(name)::ULONG,
@@ -421,8 +450,8 @@ function fieldProps(fd::mdFieldDef)
     rcplusTypeFlag = Ref(DWORD(0))
     rvalue = Ref(UVCP_CONSTANT(0))
     rvalueLen = Ref(ULONG(0))
-    res = @ccall $(mdivtbl.GetFieldProps)(
-        pmdi::Ptr{IMetaDataImport},
+    res = @ccall $(mdi.vtbl.GetFieldProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
         fd::mdFieldDef,
         rclass::Ref{mdTypeDef},
         fieldname::Ref{Cwchar_t},
@@ -450,8 +479,8 @@ function enumFields(tok::mdTypeDef)::Vector{mdFieldDef}
     rEnum = Ref(HCORENUM(0))
     fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
     rcTokens = Ref(ULONG(0))
-    res = @ccall $(mdivtbl.EnumFields)(
-        pmdi::Ptr{IMetaDataImport}, 
+    res = @ccall $(mdi.vtbl.EnumFields)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
         rEnum::Ref{HCORENUM},
         tok::mdTypeDef,
         fields::Ref{mdFieldDef},
