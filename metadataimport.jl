@@ -16,7 +16,7 @@ const S_OK = 0x00000000
 const CLSID = GUID
 const IID = GUID
 
-parse_hexbytes(s::String) =  parse(Byte, s, base = 16)
+parse_hexbytes(s::String) = parse(Byte, s, base = 16)
 
 # Guid of form 12345678-0123-5678-0123-567890123456
 macro guid_str(s)
@@ -49,38 +49,34 @@ end
 #     ...
 # end
 
-struct IMetaDataDispenserVtbl
+struct IMetaDataDispenser
     iUnknown::IUnknown
     DefineScope::Ptr{Cvoid}
     OpenScope::Ptr{Cvoid}
     OpenScopeOnMemmory::Ptr{Cvoid}
 end
 
-struct IMetaDataDispenser
-    pvtbl::Ptr{IMetaDataDispenserVtbl}
+struct COMObject{T}
+    pvtbl::Ptr{T}
 end
 
-# struct COMObject{T}
-#     pvtbl::Ptr{T}
-# end
-
-struct COMWrapper{T1, T2}
-    punk::Ptr{T1}
-    vtbl::T2
+struct COMWrapper{T}
+    punk::Ptr{COMObject{T}}
+    vtbl::T
 end
 
 function metadataDispenser()
-    rpmdd = Ref(Ptr{IMetaDataDispenser}(C_NULL))
+    rpmdd = Ref(Ptr{COMObject{IMetaDataDispenser}}(C_NULL))
     res = @ccall "Rometadata".MetaDataGetDispenser( 
         Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
         Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, 
-        rpmdd::Ref{Ptr{IMetaDataDispenser}}
+        rpmdd::Ref{Ptr{COMObject{IMetaDataDispenser}}}
         )::HRESULT
     if res == S_OK
         pmdd = rpmdd[]
         mdd = unsafe_load(pmdd)
         vtbl = unsafe_load(mdd.pvtbl)
-        return COMWrapper{IMetaDataDispenser, IMetaDataDispenserVtbl}(pmdd, vtbl)
+        return COMWrapper{IMetaDataDispenser}(pmdd, vtbl)
     end
     throw(DomainError(res))
 end
@@ -153,15 +149,15 @@ struct IMetaDataImportVtbl
     IsGlobal::Ptr{Cvoid} 
 end
 
-struct IMetaDataImport
-    pvtbl::Ptr{IMetaDataImportVtbl}
-end
+# struct IMetaDataImport
+#     pvtbl::Ptr{IMetaDataImportVtbl}
+# end
 
 const CorOpenFlags_ofRead = 0x00000000;
 
 rpmdi = Ref(Ptr{IMetaDataImport}(C_NULL)) 
 res = @ccall $(mdd.vtbl.OpenScope)(
-    mdd.punk::Ref{IMetaDataDispenser}, 
+    mdd.punk::Ref{COMObject{IMetaDataDispenser}}, 
     "Windows.Win32.winmd"::Cwstring,
     CorOpenFlags_ofRead::Cuint, 
     Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 

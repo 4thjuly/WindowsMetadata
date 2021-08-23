@@ -16,7 +16,7 @@ const S_OK = 0x00000000
 const CLSID = GUID
 const IID = GUID
 
-parse_hexbytes(s::String) =  parse(Byte, s, base = 16)
+parse_hexbytes(s::String) = parse(Byte, s, base = 16)
 
 # Guid of form 12345678-0123-5678-0123-567890123456
 macro guid_str(s)
