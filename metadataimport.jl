@@ -1,8 +1,10 @@
 import Base.@kwdef
 
 const DEFAULT_BUFFER_LEN = 1024
-
 const Byte = UInt8
+const HRESULT = UInt32
+const S_OK = 0x00000000
+const CorOpenFlags_ofRead = 0x00000000;
 
 struct GUID
     Data1::Culong
@@ -11,8 +13,6 @@ struct GUID
     Data4::NTuple{8,Byte}
 end
 
-const HRESULT = UInt32
-const S_OK = 0x00000000
 const CLSID = GUID
 const IID = GUID
 
@@ -81,8 +81,6 @@ function metadataDispenser()
     throw(DomainError(res))
 end
 
-mdd = metadataDispenser()
-
 struct IMetaDataImport
     iUnknown::IUnknown
     CloseEnum::Ptr{Cvoid}         
@@ -149,12 +147,6 @@ struct IMetaDataImport
     IsGlobal::Ptr{Cvoid} 
 end
 
-# struct IMetaDataImport
-#     pvtbl::Ptr{IMetaDataImportVtbl}
-# end
-
-const CorOpenFlags_ofRead = 0x00000000;
-
 function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
     rpmdi = Ref(Ptr{COMObject{IMetaDataImport}}(C_NULL))
     res = @ccall $(mdd.vtbl.OpenScope)(
@@ -172,8 +164,6 @@ function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
     end
     throw(DomainError(res))
 end
-
-mdi = metadataImport(mdd)
 
 const ULONG32 = UInt32
 const mdToken = ULONG32
@@ -195,8 +185,6 @@ function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
     return mdTokenNil
 end
 
-tdWAMApis = findTypeDef(mdi, "Windows.Win32.WindowsAndMessaging.Apis")
-
 function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName::String)
     rmethodDef = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindMethod)(
@@ -212,10 +200,6 @@ function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName:
     end
     return mdTokenNil
 end
-
-methodDef = findMethod(mdi, tdWAMApis, "RegisterClassExW")
-@show methodDef
-println()
 
 const mdMethodDef = mdToken
 const DWORD = UInt32
@@ -241,10 +225,6 @@ function getPInvokeMap(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef)
     return (mdTokenNil, "")
 end
 
-(moduleref, importname) = getPInvokeMap(mdi, methodDef)
-@show importname
-println()
-
 function getModuleRefProps(mdi::COMWrapper{IMetaDataImport}, mr::mdModuleRef)
     modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rmodulanameLen = Ref(ULONG(0))
@@ -261,10 +241,6 @@ function getModuleRefProps(mdi::COMWrapper{IMetaDataImport}, mr::mdModuleRef)
     return ""
 end
 
-moduleName = getModuleRefProps(mdi, moduleref)
-@show moduleName
-println()
-
 const mdParamDef = mdToken
 
 function getParamForMethodIndex(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef, i::Int)
@@ -280,8 +256,6 @@ function getParamForMethodIndex(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDe
     end
     return mdTokenNil
 end
-
-paramDef = getParamForMethodIndex(mdi, methodDef, 1) 
 
 function getParamProps(mdi::COMWrapper{IMetaDataImport}, paramDef::mdParamDef)
     paramName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
@@ -315,10 +289,6 @@ function getParamProps(mdi::COMWrapper{IMetaDataImport}, paramDef::mdParamDef)
     end
     return ""
 end
-
-paramName = getParamProps(mdi, paramDef)
-@show paramName
-println()
 
 const mdSignature = mdToken
 const COR_SIGNATURE = UInt8
@@ -356,10 +326,6 @@ function getMethodProps(mdi::COMWrapper{IMetaDataImport}, methodDef::mdMethodDef
     throw(DomainError(res))
 end
 
-sig = getMethodProps(mdi, methodDef)
-@show sig
-println()
-
 const mdTypeRef = mdToken
 const mdTypeSpec = mdToken
 
@@ -389,15 +355,13 @@ function uncompressSig(sig::AbstractVector{COR_SIGNATURE})::Union{mdTypeRef, mdT
     return 0
 end
 
-typedref = uncompressSig(@view sig[6:7])
-@show typedref
-
 # check
-valid = @ccall $(mdi.vtbl.IsValidToken)(
-    mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-    typedref::mdToken
-    )::Bool
-@show valid
+function isValidToken(mdi::COMWrapper{IMetaDataImport}, tok::mdToken)::Bool
+    return @ccall $(mdi.vtbl.IsValidToken)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        tok::mdToken
+        )::Bool
+end
 
 function getTypeRefName(tr::mdTypeRef)::String
     rscope = Ref(mdToken(0))
@@ -427,10 +391,6 @@ function getName(mdt::mdToken)
     end
 end
 
-structname = getTypeRefName(typedref)
-@show structname
-println()
-
 function findTypeDef(name::String)::mdToken
     rStructToken = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindTypeDefByName)(
@@ -444,10 +404,6 @@ function findTypeDef(name::String)::mdToken
     end
     return mdTokenNil
 end
-
-structToken = findTypeDef(structname)
-@show structToken
-println()
 
 function getTypeDefName(td::mdTypeDef)::String
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
@@ -522,8 +478,6 @@ function enumFields(tok::mdTypeDef)::Vector{mdFieldDef}
     return nothing
 end
 
-fields = enumFields(structToken)
-
 @enum SIG_KIND begin
    SIG_KIND_FIELD = 0x06 
 end
@@ -583,11 +537,3 @@ function showFields(fields::Vector{mdFieldDef})
         @show sigblobtoTypeInfo(fp.sigblob)
     end
 end
-
-showFields(fields)
-println()
-
-# drill in to last field
-name = ((fields[end] |> fieldProps).sigblob |> sigblobtoTypeInfo).subtype |> getName
-@show name
-name |> findTypeDef |> enumFields |> showFields
