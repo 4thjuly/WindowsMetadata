@@ -2,11 +2,11 @@ include("metadataimport.jl")
 
 mdi = metadataDispenser() |> metadataImport
 tdWAMApis = findTypeDef(mdi, "Windows.Win32.WindowsAndMessaging.Apis")
-methodDef = findMethod(mdi, tdWAMApis, "RegisterClassExW")
-@show methodDef
+mdRegClass = findMethod(mdi, tdWAMApis, "RegisterClassExW")
+@show mdRegClass
 println()
 
-(moduleref, importname) = getPInvokeMap(mdi, methodDef)
+(moduleref, importname) = getPInvokeMap(mdi, mdRegClass)
 @show importname
 println()
 
@@ -14,16 +14,18 @@ moduleName = getModuleRefProps(mdi, moduleref)
 @show moduleName
 println()
 
-paramDef = getParamForMethodIndex(mdi, methodDef, 1) 
+paramDef = getParamForMethodIndex(mdi, mdRegClass, 1) 
 paramName = getParamProps(mdi, paramDef)
 @show paramName
 println()
 
-sig = getMethodProps(mdi, methodDef)
+sig = getMethodProps(mdi, mdRegClass)
 @show sig
 println()
 
-typedref = uncompressSig(@view sig[6:7])
+# TODO - decompose sig properly and lookup last paramCount
+
+typedref = uncompressToken(@view sig[6:7])
 @show typedref
 @show isValidToken(mdi, typedref)
 
@@ -34,12 +36,11 @@ println()
 structToken = findTypeDef(structname)
 @show structToken
 println()
-
 fields = enumFields(structToken)
 showFields(fields)
 println()
 
 # drill in to last field
-name = ((fields[end] |> fieldProps).sigblob |> sigblobtoTypeInfo).subtype |> getName
+name = ((fields[end] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).subtype |> getName
 @show name
 name |> findTypeDef |> enumFields |> showFields

@@ -334,17 +334,26 @@ const TYPEDEF_TYPE_FLAG = 0x02000000
 const FIELDDEF_TYPE_FLAG = 0x04000000;
 const TYPESPEC_TYPE_FLAG = 0x1b000000
 
-function uncompressSig(sig::AbstractVector{COR_SIGNATURE})::Union{mdTypeRef, mdTypeDef, mdTypeSpec}
-    ctok::UInt32 = UInt32(0)
+function uncompress(sig::AbstractVector{COR_SIGNATURE})
+    val::UInt32 = UInt32(0)
+    len = 0
     if sig[1] & 0x80 == 0x00
-        ctok = UInt32(sig[1])
+        val = UInt32(sig[1])
+        len = 1
     elseif sig[1] & 0xC0 == 0x80
-        ctok = UInt32(sig[1] & 0x3F) << 8 | UInt32(sig[2])
+        val = UInt32(sig[1] & 0x3F) << 8 | UInt32(sig[2])
+        len = 2
     elseif sig[1] & 0xE0 == 0xC0
-        ctok = UInt32(sig[1] & 0x1f) << 24 | UInt32(sig[2]) << 16 | UInt32(sig[3]) << 8 | UInt32(sig[4])
+        val = UInt32(sig[1] & 0x1f) << 24 | UInt32(sig[2]) << 16 | UInt32(sig[3]) << 8 | UInt32(sig[4])
+        len = 4
     else
         error("Bad signature")
     end
+    return (val, len)
+end
+
+function uncompressToken(sig::AbstractVector{COR_SIGNATURE})::Union{mdTypeRef, mdTypeDef, mdTypeSpec}
+    ctok, _ = uncompress(sig)
     if ctok & 0x03 == 0x00
         return mdTypeDef(TYPEDEF_TYPE_FLAG | (ctok >> 2))
     elseif ctok & 0x03 == 0x01
@@ -479,7 +488,15 @@ function enumFields(tok::mdTypeDef)::Vector{mdFieldDef}
 end
 
 @enum SIG_KIND begin
-   SIG_KIND_FIELD = 0x06 
+    SIG_KIND_DEFAULT = 0x0 
+    SIG_KIND_C = 0x1 
+    SIG_KIND_STDCALL = 0x2 
+    SIG_KIND_THISCALL = 0x3 
+    SIG_KIND_FASTCALL = 0x4 
+    SIG_KIND_VARARG = 0x5 
+    SIG_KIND_FIELD = 0x06 
+    SIG_KIND_HASTHIS = 0x20 
+    SIG_KIND_EXPLICITTHIS = 0x40 
 end
 
 @enum ELEMENT_TYPE::Byte begin
@@ -510,19 +527,21 @@ end
     # TBD
 end
 
-function sigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
+function fieldSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
     sk::SIG_KIND = SIG_KIND(sigblob[1])
     et::ELEMENT_TYPE = ELEMENT_TYPE_VOID
     subtype::Union{ELEMENT_TYPE, mdToken} = ELEMENT_TYPE_VOID
+
+    # TODO - should be a vectore eg PTR to VALUETYPE to mdToken
 
     if sk == SIG_KIND_FIELD
         et = ELEMENT_TYPE(sigblob[2])
         if et == ELEMENT_TYPE_PTR
             subtype = ELEMENT_TYPE(sigblob[3])
         elseif et == ELEMENT_TYPE_VALUETYPE
-            subtype = mdToken(uncompressSig(sigblob[3:end]))
+            subtype = mdToken(uncompressToken(sigblob[3:end]))
         elseif et == ELEMENT_TYPE_CLASS
-            subtype = mdToken(uncompressSig(sigblob[3:end]))
+            subtype = mdToken(uncompressToken(sigblob[3:end]))
         end
     end
 
@@ -534,6 +553,16 @@ function showFields(fields::Vector{mdFieldDef})
         fp = fieldProps(field)
         @show fp.name
         @show fp.sigblob
-        @show sigblobtoTypeInfo(fp.sigblob)
+        @show fieldSigblobtoTypeInfo(fp.sigblob)
     end
+end
+
+function methodDefSig(sigblob::Vector{COR_SIGNATURE})
+    # The first byte of the Signature holds bits for HASTHIS, EXPLICITTHIS and calling convention (DEFAULT, VARARG, or GENERIC)
+    i = 1
+    paramCount, len =  uncompress(sigblob[i])
+    i += len
+    retTyep, len = uncompress(sigblob[i])
+
+    # TBD params
 end
