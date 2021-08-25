@@ -23,9 +23,6 @@ sigblob = getMethodProps(mdi, mdRegClass)
 @show sigblob
 println()
 
-# TODO - decompose sig properly and lookup last paramCount
-
-# typedref = uncompressToken(@view sig[6:7])
 typeinfo = methodSigblobtoTypeInfo(sigblob)
 typedref = typeinfo.paramType
 
