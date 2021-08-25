@@ -1,10 +1,32 @@
 import Base.@kwdef
 
 const DEFAULT_BUFFER_LEN = 1024
-const Byte = UInt8
-const HRESULT = UInt32
 const S_OK = 0x00000000
 const CorOpenFlags_ofRead = 0x00000000;
+const TYPEREF_TYPE_FLAG = 0x01000000
+const TYPEDEF_TYPE_FLAG = 0x02000000
+const FIELDDEF_TYPE_FLAG = 0x04000000
+const TYPESPEC_TYPE_FLAG = 0x1b000000
+
+const Byte = UInt8
+const HRESULT = UInt32
+const ULONG32 = UInt32
+const ULONG = UInt32
+const DWORD = UInt32
+const mdToken = ULONG32
+const mdTypeDef = mdToken
+const mdMethodDef = mdToken
+const mdModuleRef = mdToken
+const mdParamDef = mdToken
+const mdSignature = mdToken
+const mdTypeRef = mdToken
+const mdTypeSpec = mdToken
+const mdFieldDef = mdToken
+const mdTokenNil = mdToken(0)
+
+const UVCP_CONSTANT = Ptr{Cvoid}
+const HCORENUM = Ptr{Cvoid}
+const COR_SIGNATURE = UInt8
 
 struct GUID
     Data1::Culong
@@ -165,11 +187,6 @@ function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
     throw(DomainError(res))
 end
 
-const ULONG32 = UInt32
-const mdToken = ULONG32
-const mdTypeDef = mdToken
-const mdTokenNil = mdToken(0)
-const ULONG = UInt32
 
 function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
     rStructToken = Ref(mdToken(0))
@@ -200,10 +217,6 @@ function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName:
     end
     return mdTokenNil
 end
-
-const mdMethodDef = mdToken
-const DWORD = UInt32
-const mdModuleRef = mdToken
 
 function getPInvokeMap(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef)
     rflags = Ref(DWORD(0))
@@ -240,8 +253,6 @@ function getModuleRefProps(mdi::COMWrapper{IMetaDataImport}, mr::mdModuleRef)
     end
     return ""
 end
-
-const mdParamDef = mdToken
 
 function getParamForMethodIndex(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef, i::Int)
     rparamDef = Ref(mdParamDef(0))
@@ -290,9 +301,6 @@ function getParamProps(mdi::COMWrapper{IMetaDataImport}, paramDef::mdParamDef)
     return ""
 end
 
-const mdSignature = mdToken
-const COR_SIGNATURE = UInt8
-
 function getMethodProps(mdi::COMWrapper{IMetaDataImport}, methodDef::mdMethodDef)
     rclass = Ref(mdTypeDef(0))
     methodName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
@@ -325,14 +333,6 @@ function getMethodProps(mdi::COMWrapper{IMetaDataImport}, methodDef::mdMethodDef
     end
     throw(DomainError(res))
 end
-
-const mdTypeRef = mdToken
-const mdTypeSpec = mdToken
-
-const TYPEREF_TYPE_FLAG = 0x01000000
-const TYPEDEF_TYPE_FLAG = 0x02000000
-const FIELDDEF_TYPE_FLAG = 0x04000000;
-const TYPESPEC_TYPE_FLAG = 0x1b000000
 
 function uncompress(sig::AbstractVector{COR_SIGNATURE})
     val::UInt32 = UInt32(0)
@@ -431,9 +431,6 @@ function getTypeDefName(td::mdTypeDef)::String
     return res == S_OK ? transcode(String, name[begin:rnameLen[]-1]) : ""
 end
 
-const mdFieldDef = mdToken
-const UVCP_CONSTANT = Ptr{Cvoid}
-
 function fieldProps(fd::mdFieldDef)
     rclass = Ref(mdTypeDef(0))
     fieldname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
@@ -466,8 +463,6 @@ function fieldProps(fd::mdFieldDef)
     
     return ("", UInt8[], DWORD(0))
 end
-
-const HCORENUM = Ptr{Cvoid}
 
 function enumFields(tok::mdTypeDef)::Vector{mdFieldDef}
     rEnum = Ref(HCORENUM(0))
