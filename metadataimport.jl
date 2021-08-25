@@ -594,12 +594,12 @@ function showFields(fields::Vector{mdFieldDef})
     end
 end
 
-function methodDefSig(sigblob::Vector{COR_SIGNATURE})
-    # The first byte of the Signature holds bits for HASTHIS, EXPLICITTHIS and calling convention (DEFAULT, VARARG, or GENERIC)
-    i = 1
-    paramCount, len =  uncompress(sigblob[i])
-    i += len
-    retTyep, len = uncompress(sigblob[i])
+# function methodDefSig(sigblob::Vector{COR_SIGNATURE})
+#     # The first byte of the Signature holds bits for HASTHIS, EXPLICITTHIS and calling convention (DEFAULT, VARARG, or GENERIC)
+#     i = 1
+#     paramCount, len =  uncompress(sigblob[i])
+#     i += len
+#     retTyep, len = uncompress(sigblob[i])
 
-    # TBD params
-end
+#     # TBD params
+# end
