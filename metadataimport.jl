@@ -28,6 +28,10 @@ const UVCP_CONSTANT = Ptr{Cvoid}
 const HCORENUM = Ptr{Cvoid}
 const COR_SIGNATURE = UInt8
 
+struct HRESULT_FAILED <: Exception 
+    hresult::HRESULT
+end
+
 struct GUID
     Data1::Culong
     Data2::Cushort
@@ -100,7 +104,7 @@ function metadataDispenser()
         vtbl = unsafe_load(mdd.pvtbl)
         return COMWrapper{IMetaDataDispenser}(pmdd, vtbl)
     end
-    throw(DomainError(res))
+    throw(HRESULT_FAILED(res))
 end
 
 struct IMetaDataImport
@@ -184,9 +188,8 @@ function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
         vtbl = unsafe_load(mdi.pvtbl)
         return COMWrapper{IMetaDataImport}(pmdi, vtbl)
     end
-    throw(DomainError(res))
+    throw(HRESULT_FAILED(res))
 end
-
 
 function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
     rStructToken = Ref(mdToken(0))
@@ -331,7 +334,7 @@ function getMethodProps(mdi::COMWrapper{IMetaDataImport}, methodDef::mdMethodDef
     if res == S_OK
         return unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
     end
-    throw(DomainError(res))
+    throw(HRESULT_FAILED(res))
 end
 
 function uncompress(sig::AbstractVector{COR_SIGNATURE})
@@ -352,16 +355,17 @@ function uncompress(sig::AbstractVector{COR_SIGNATURE})
     return (val, len)
 end
 
-function uncompressToken(sig::AbstractVector{COR_SIGNATURE})::Union{mdTypeRef, mdTypeDef, mdTypeSpec}
-    ctok, _ = uncompress(sig)
-    if ctok & 0x03 == 0x00
-        return mdTypeDef(TYPEDEF_TYPE_FLAG | (ctok >> 2))
-    elseif ctok & 0x03 == 0x01
-        return mdTypeRef(TYPEREF_TYPE_FLAG | (ctok >> 2))
-    elseif ctok & 0x03 == 0x02
-        return mdTypeDef(TYPESPEC_TYPE_FLAG | (ctok >> 2))
+function uncompressToken(sig::AbstractVector{COR_SIGNATURE})
+    val, len = uncompress(sig)
+    tok::mdToken = mdTokenNil
+    if val & 0x03 == 0x00
+        tok = mdTypeDef(TYPEDEF_TYPE_FLAG | (val >> 2))
+    elseif val & 0x03 == 0x01
+        tok = mdTypeRef(TYPEREF_TYPE_FLAG | (val >> 2))
+    elseif val & 0x03 == 0x02
+        tok = mdTypeDef(TYPESPEC_TYPE_FLAG | (val >> 2))
     end
-    return 0
+    return tok, len
 end
 
 # check
@@ -479,7 +483,7 @@ function enumFields(tok::mdTypeDef)::Vector{mdFieldDef}
     if res == S_OK
         return fields[begin:rcTokens[]]
     end
-    return nothing
+    throw(HRESULT_FAILED(res))
 end
 
 @enum SIG_KIND begin
@@ -522,25 +526,63 @@ end
     # TBD
 end
 
-function fieldSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
-    sk::SIG_KIND = SIG_KIND(sigblob[1])
-    et::ELEMENT_TYPE = ELEMENT_TYPE_VOID
-    subtype::Union{ELEMENT_TYPE, mdToken} = ELEMENT_TYPE_VOID
-
-    # TODO - should be a vectore eg PTR to VALUETYPE to mdToken
-
-    if sk == SIG_KIND_FIELD
-        et = ELEMENT_TYPE(sigblob[2])
-        if et == ELEMENT_TYPE_PTR
-            subtype = ELEMENT_TYPE(sigblob[3])
-        elseif et == ELEMENT_TYPE_VALUETYPE
-            subtype = mdToken(uncompressToken(sigblob[3:end]))
-        elseif et == ELEMENT_TYPE_CLASS
-            subtype = mdToken(uncompressToken(sigblob[3:end]))
+function paramType(paramblob::Vector{COR_SIGNATURE})
+    len = 1
+    et::ELEMENT_TYPE = ELEMENT_TYPE(paramblob[1])
+    type::mdToken = mdTokenNil
+    isPtr::Bool = false
+    isValueType::Bool = false
+    
+    if et == ELEMENT_TYPE_PTR
+        isPtr = true
+        subet = ELEMENT_TYPE(paramblob[2])
+        if subet == ELEMENT_TYPE_VALUETYPE
+            isValueType = true
+            type, len = uncompressToken(paramblob[3:end])
+        else
+            type, len = uncompress(paramblob[2:end])
         end
+    elseif et == ELEMENT_TYPE_VALUETYPE
+        isValueType = true
+        type, len = uncompressToken(paramblob[2:end])
+    elseif et == ELEMENT_TYPE_CLASS
+        type, len = uncompressToken(paramblob[2:end])
+    else
+        type = paramblob[1]
+        len = 1
     end
 
-    return (sigkind=sk, elementtype=et, subtype=subtype)
+    return (type=type, len=len, isPtr=isPtr, isValueType=isValueType)
+end
+
+function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
+    sk::SIG_KIND = SIG_KIND(sigblob[1] & 0xF)
+    # et::ELEMENT_TYPE = ELEMENT_TYPE_VOID
+    # typeToken::mdToken = mdTokenNil
+    isPtr::Bool = false
+    isValueType::Bool = false
+    paramCount::Int = 0
+    i = 2
+
+    # NB Assumes c-api
+    
+    paramCount, len = uncompress(sigblob[i:end])
+    i += len
+
+    rt, len = paramType(sigblob[i:end])
+    i += len
+
+    # TODO loop over param count
+    pt, len, isPtr, isValueType = paramType(sigblob[i:end])
+
+    return (sigkind=sk, retType=rt, paramType=pt, isPtr=isPtr, isValueType=isValueType)
+end
+
+function fieldSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
+    if SIG_KIND(sigblob[1]) == SIG_KIND_FIELD
+        return paramType(sigblob[2:end])
+    end
+    throw("bad signature")
 end
 
 function showFields(fields::Vector{mdFieldDef})

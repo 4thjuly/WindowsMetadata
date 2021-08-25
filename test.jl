@@ -19,13 +19,16 @@ paramName = getParamProps(mdi, paramDef)
 @show paramName
 println()
 
-sig = getMethodProps(mdi, mdRegClass)
-@show sig
+sigblob = getMethodProps(mdi, mdRegClass)
+@show sigblob
 println()
 
 # TODO - decompose sig properly and lookup last paramCount
 
-typedref = uncompressToken(@view sig[6:7])
+# typedref = uncompressToken(@view sig[6:7])
+typeinfo = methodSigblobtoTypeInfo(sigblob)
+typedref = typeinfo.paramType
+
 @show typedref
 @show isValidToken(mdi, typedref)
 
@@ -41,6 +44,6 @@ showFields(fields)
 println()
 
 # drill in to last field
-name = ((fields[end] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).subtype |> getName
+name = ((fields[end] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).type |> getName
 @show name
 name |> findTypeDef |> enumFields |> showFields
