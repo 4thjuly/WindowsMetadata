@@ -1,17 +1,17 @@
 macro make_struct(name, fields)
-    fexp = [:($(Symbol(x[1]))::$(Symbol(x[2]))) for x in eval(fields)]
+    fexps = [:($(Symbol(x[1]))::$(Symbol(x[2]))) for x in eval(fields)]
     quote 
         struct $(esc(Symbol(name)))
-            $(map(esc, fexp)...)
+            $(map(esc, fexps)...)
         end
     end
 end
 
 function make_struct(name, fields)
-    fexp = [:($(Symbol(x[1]))::$(Symbol(x[2]))) for x in fields]
+    fexps = [:($(Symbol(x[1]))::$(Symbol(x[2]))) for x in fields]
     sexp = quote 
         struct $(Symbol(name))
-            $(fexp...)
+            $(fexps...)
         end
     end
     eval(sexp)
