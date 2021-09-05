@@ -18,7 +18,7 @@ function make_struct(name, fields)
 end
 
 # Compile time
-@make_struct("TestStruct1", [["x","Int"], ["y", "String"], ["z", "Bool"]])
+@make_struct "TestStruct1" [["x","Int"], ["y", "String"], ["z", "Bool"]]
 dump(TestStruct1)
 
 # Runtime
