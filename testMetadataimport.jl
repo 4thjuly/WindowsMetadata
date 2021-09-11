@@ -1,4 +1,5 @@
-include("metadataimport.jl")
+include("metadataimport-wrapper.jl")
+include("winmd.jl")
 
 mdi = metadataDispenser() |> metadataImport
 tdWAMApis = findTypeDef(mdi, "Windows.Win32.WindowsAndMessaging.Apis")
@@ -33,6 +34,16 @@ structname = getTypeRefName(typedref)
 @show structname
 println()
 
+# Dump struct
+function showFields(fields::Vector{mdFieldDef})
+    for field in fields
+        fp = fieldProps(field)
+        @show fp.name
+        @show fp.sigblob
+        @show fieldSigblobtoTypeInfo(fp.sigblob)
+    end
+end
+
 structToken = findTypeDef(structname)
 @show structToken
 println()
@@ -44,3 +55,19 @@ println()
 name = ((fields[end] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).type |> getName
 @show name
 name |> findTypeDef |> enumFields |> showFields
+println()
+
+# convert 
+undotname = convertTypeNameToJulia(name)
+fields = name |> findTypeDef |> enumFields
+fps = fieldProps(fields[1])
+@show fps.name
+typeinfo = fps.sigblob |> fieldSigblobtoTypeInfo
+@show typeinfo.type
+jt = convertTypeToJulia(ELEMENT_TYPE(typeinfo.type))
+createStructType(undotname, [(fps.name, jt)])
+
+# Test
+hicon = Windows_Win32_Gdi_HICON(42)
+dump(hicon)
+

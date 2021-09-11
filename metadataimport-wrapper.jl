@@ -1,3 +1,5 @@
+# Low level wrapper for metadataimport
+
 import Base.@kwdef
 
 const DEFAULT_BUFFER_LEN = 1024
@@ -583,15 +585,6 @@ function fieldSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
         return paramType(sigblob[2:end])
     end
     throw("bad signature")
-end
-
-function showFields(fields::Vector{mdFieldDef})
-    for field in fields
-        fp = fieldProps(field)
-        @show fp.name
-        @show fp.sigblob
-        @show fieldSigblobtoTypeInfo(fp.sigblob)
-    end
 end
 
 # function methodDefSig(sigblob::Vector{COR_SIGNATURE})
