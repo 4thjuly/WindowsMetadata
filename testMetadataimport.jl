@@ -30,7 +30,7 @@ typedref = typeinfo.paramType
 @show typedref
 @show isValidToken(mdi, typedref)
 
-structname = getTypeRefName(typedref)
+structname = getTypeRefName(mdi, typedref)
 @show structname
 println()
 
@@ -44,30 +44,43 @@ function showFields(fields::Vector{mdFieldDef})
     end
 end
 
-structToken = findTypeDef(structname)
+structToken = findTypeDef(mdi, structname)
 @show structToken
 println()
-fields = enumFields(structToken)
+fields = enumFields(mdi, structToken)
 showFields(fields)
 println()
 
-# drill in to last field
-name = ((fields[end] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).type |> getName
+# Drill in to last field
+name = getName(mdi, ((fields[end] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).type)
 @show name
-name |> findTypeDef |> enumFields |> showFields
+enumFields(mdi, findTypeDef(mdi, name)) |> showFields
 println()
 
 # convert 
 undotname = convertTypeNameToJulia(name)
-fields = name |> findTypeDef |> enumFields
-fps = fieldProps(fields[1])
+fps = fieldProps(enumFields(mdi, findTypeDef(mdi, name))[1])
 @show fps.name
 typeinfo = fps.sigblob |> fieldSigblobtoTypeInfo
 @show typeinfo.type
-jt = convertTypeToJulia(ELEMENT_TYPE(typeinfo.type))
+jt = convertPrimitiveTypeToJulia(ELEMENT_TYPE(typeinfo.type))
 createStructType(undotname, [(fps.name, jt)])
 
 # Test
 hicon = Windows_Win32_Gdi_HICON(42)
 dump(hicon)
+println()
+
+# WndProc
+field3type = ((fields[3] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).type
+@show field3type
+name = getName(mdi, field3type)
+@show name
+tdWndProc = findTypeDef(mdi, name)
+name, extends = getTypeDefProps(mdi, tdWndProc)
+extendsName = getName(mdi, extends)
+@show extendsName
+wndprocMemnbers = enumMembers(mdi, tdWndProc)
+@show wndprocMemnbers
+
 

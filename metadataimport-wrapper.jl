@@ -378,7 +378,7 @@ function isValidToken(mdi::COMWrapper{IMetaDataImport}, tok::mdToken)::Bool
         )::Bool
 end
 
-function getTypeRefName(tr::mdTypeRef)::String
+function getTypeRefName(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef)::String
     rscope = Ref(mdToken(0))
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rnameLen = Ref(ULONG(0))
@@ -396,17 +396,18 @@ function getTypeRefName(tr::mdTypeRef)::String
     return ""
 end
 
-function getName(mdt::mdToken)
+function getName(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)
     if mdt & TYPEDEF_TYPE_FLAG == TYPEDEF_TYPE_FLAG
-        return getTypeDefName(mdt)
+        name = getTypeDefProps(mdi, mdt)
+        return name
     elseif mdt & TYPEREF_TYPE_FLAG == TYPEREF_TYPE_FLAG
-        return getTypeRefName(mdt)
+        return getTypeRefName(mdi, mdt)
     else
         return ""
     end
 end
 
-function findTypeDef(name::String)::mdToken
+function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
     rStructToken = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindTypeDefByName)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
@@ -420,21 +421,41 @@ function findTypeDef(name::String)::mdToken
     return mdTokenNil
 end
 
-function getTypeDefName(td::mdTypeDef)::String
+# function getTypeDefName(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef)::String
+#     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+#     rnameLen = Ref(ULONG(0))
+#     rflags = Ref(DWORD(0))
+#     rextends = Ref(mdToken(0))
+#     res = @ccall $(mdi.vtbl.GetTypeDefProps)(
+#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+#         td::mdTypeDef,
+#         name::Ref{Cwchar_t},
+#         length(name)::ULONG,
+#         rnameLen::Ref{ULONG},
+#         rflags::Ref{DWORD},
+#         rextends::Ref{mdToken}
+#         )::HRESULT
+#     return res == S_OK ? transcode(String, name[begin:rnameLen[]-1]) : ""
+# end
+
+function getTypeDefProps(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef)
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rnameLen = Ref(ULONG(0))
     rflags = Ref(DWORD(0))
     rextends = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.GetTypeDefProps)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-        td::mdTypeRef,
+        td::mdTypeDef,
         name::Ref{Cwchar_t},
         length(name)::ULONG,
         rnameLen::Ref{ULONG},
         rflags::Ref{DWORD},
         rextends::Ref{mdToken}
         )::HRESULT
-    return res == S_OK ? transcode(String, name[begin:rnameLen[]-1]) : ""
+    if res == S_OK
+        return (name=transcode(String, name[begin:rnameLen[]-1]), extends=rextends[], flags=rflags[])
+    end
+    throw(HRESULT_FAILED(res))
 end
 
 function fieldProps(fd::mdFieldDef)
@@ -470,7 +491,7 @@ function fieldProps(fd::mdFieldDef)
     return ("", UInt8[], DWORD(0))
 end
 
-function enumFields(tok::mdTypeDef)::Vector{mdFieldDef}
+function enumFields(mdi::COMWrapper{IMetaDataImport}, tok::mdTypeDef)::Vector{mdFieldDef}
     rEnum = Ref(HCORENUM(0))
     fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
     rcTokens = Ref(ULONG(0))
@@ -596,3 +617,21 @@ end
 
 #     # TBD params
 # end
+
+function enumMembers(mdi::COMWrapper{IMetaDataImport}, tok::mdTypeDef)::Vector{mdToken}
+    rEnum = Ref(HCORENUM(0))
+    members = zeros(mdToken, DEFAULT_BUFFER_LEN)
+    rcMembers = Ref(ULONG(0))
+    res = @ccall $(mdi.vtbl.EnumMembers)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        rEnum::Ref{HCORENUM},
+        tok::mdTypeDef,
+        members::Ref{mdToken},
+        length(members)::ULONG,
+        rcMembers::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return members[begin:rcMembers[]]
+    end
+    throw(HRESULT_FAILED(res))
+end
