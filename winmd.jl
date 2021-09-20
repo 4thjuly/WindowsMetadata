@@ -48,7 +48,7 @@ function createStructType(winmd::Winmd, structname::String)
     mdi = winmd.mdi
     undotname = convertTypeNameToJulia(structname)
     structtype = get(winmd.types, structname, nothing)
-    if structtype != nothing
+    if structtype !== nothing
         return structtype
     else
         fps = fieldProps(mdi, enumFields(mdi, findTypeDef(mdi, structname))[1])
@@ -56,6 +56,6 @@ function createStructType(winmd::Winmd, structname::String)
         fieldtype = convertPrimitiveTypeToJulia(ELEMENT_TYPE(typeinfo.type))
         structtype = createStructType(undotname, [(fps.name, fieldtype)])
         winmd.types[structname] = structtype 
+        return structtype
     end
-    return nothing
 end
