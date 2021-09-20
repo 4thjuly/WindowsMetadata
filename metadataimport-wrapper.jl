@@ -458,7 +458,7 @@ function getTypeDefProps(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef)
     throw(HRESULT_FAILED(res))
 end
 
-function fieldProps(fd::mdFieldDef)
+function fieldProps(mdi::COMWrapper{IMetaDataImport}, fd::mdFieldDef)
     rclass = Ref(mdTypeDef(0))
     fieldname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rfieldnameLen = Ref(ULONG(0))
