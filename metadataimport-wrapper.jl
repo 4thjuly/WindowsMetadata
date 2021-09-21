@@ -5,11 +5,6 @@ import Base.@kwdef
 const DEFAULT_BUFFER_LEN = 1024
 const S_OK = 0x00000000
 const CorOpenFlags_ofRead = 0x00000000
-# const TYPEREF_TYPE_FLAG = 0x01000000
-# const TYPEDEF_TYPE_FLAG = 0x02000000
-# const FIELDDEF_TYPE_FLAG = 0x04000000
-# const TYPESPEC_TYPE_FLAG = 0x1b000000
-# const TOKEN_TYPE_MASK = 0xFF000000
 
 const SYSTEM_VALUETYPE_STR = "System.ValueType"
 const SYSTEM_MULTICAST_DELEGATE_STR = "System.MulticastDelegate"
@@ -210,6 +205,8 @@ struct IMetaDataImport
     IsGlobal::Ptr{Cvoid} 
 end
 
+const CMetaDataImport = COMWrapper{IMetaDataImport}
+
 function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
     rpmdi = Ref(Ptr{COMObject{IMetaDataImport}}(C_NULL))
     res = @ccall $(mdd.vtbl.OpenScope)(
@@ -223,12 +220,12 @@ function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
         pmdi = rpmdi[]
         mdi = unsafe_load(pmdi)
         vtbl = unsafe_load(mdi.pvtbl)
-        return COMWrapper{IMetaDataImport}(pmdi, vtbl)
+        return CMetaDataImport(pmdi, vtbl)
     end
     throw(HRESULT_FAILED(res))
 end
 
-function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
+function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
     rStructToken = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindTypeDefByName)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
@@ -242,7 +239,7 @@ function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
     return mdTokenNil
 end
 
-function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName::String)
+function findMethod(mdi::CMetaDataImport, td::mdTypeDef, methodName::String)
     rmethodDef = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindMethod)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
@@ -258,7 +255,7 @@ function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName:
     return mdTokenNil
 end
 
-function getPInvokeMap(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef)
+function getPInvokeMap(mdi::CMetaDataImport, md::mdMethodDef)
     rflags = Ref(DWORD(0))
     importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rnameLen = Ref(ULONG(0))
@@ -278,7 +275,7 @@ function getPInvokeMap(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef)
     return (mdTokenNil, "")
 end
 
-function getModuleRefProps(mdi::COMWrapper{IMetaDataImport}, mr::mdModuleRef)
+function getModuleRefProps(mdi::CMetaDataImport, mr::mdModuleRef)
     modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rmodulanameLen = Ref(ULONG(0))
     res = @ccall $(mdi.vtbl.GetModuleRefProps)(
@@ -294,7 +291,7 @@ function getModuleRefProps(mdi::COMWrapper{IMetaDataImport}, mr::mdModuleRef)
     return ""
 end
 
-function getParamForMethodIndex(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDef, i::Int)
+function getParamForMethodIndex(mdi::CMetaDataImport, md::mdMethodDef, i::Int)
     rparamDef = Ref(mdParamDef(0))
     res = @ccall $(mdi.vtbl.GetParamForMethodIndex)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
@@ -308,7 +305,7 @@ function getParamForMethodIndex(mdi::COMWrapper{IMetaDataImport}, md::mdMethodDe
     return mdTokenNil
 end
 
-function getParamProps(mdi::COMWrapper{IMetaDataImport}, paramDef::mdParamDef)
+function getParamProps(mdi::CMetaDataImport, paramDef::mdParamDef)
     paramName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rparamMethodDef = Ref(mdMethodDef(0))
     rparamNameLen = Ref(ULONG(0))
@@ -341,7 +338,7 @@ function getParamProps(mdi::COMWrapper{IMetaDataImport}, paramDef::mdParamDef)
     return ""
 end
 
-function getMethodProps(mdi::COMWrapper{IMetaDataImport}, methodDef::mdMethodDef)
+function getMethodProps(mdi::CMetaDataImport, methodDef::mdMethodDef)
     rclass = Ref(mdTypeDef(0))
     methodName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rmethodNameLen = Ref(ULONG(0))
@@ -406,14 +403,14 @@ function uncompressToken(sig::AbstractVector{COR_SIGNATURE})
 end
 
 # check
-function isValidToken(mdi::COMWrapper{IMetaDataImport}, tok::mdToken)::Bool
+function isValidToken(mdi::CMetaDataImport, tok::mdToken)::Bool
     return @ccall $(mdi.vtbl.IsValidToken)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
         tok::mdToken
         )::Bool
 end
 
-function getTypeRefName(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef)::String
+function getTypeRefName(mdi::CMetaDataImport, tr::mdTypeRef)::String
     rscope = Ref(mdToken(0))
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rnameLen = Ref(ULONG(0))
@@ -431,7 +428,7 @@ function getTypeRefName(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef)::String
     return ""
 end
 
-function getName(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::String
+function getName(mdi::CMetaDataImport, mdt::mdToken)::String
     if mdt & UInt32(TOKEN_TYPE_TYPEDEF) == UInt32(TOKEN_TYPE_TYPEDEF)
         props = getTypeDefProps(mdi, mdt) 
         return props.name
@@ -442,7 +439,7 @@ function getName(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::String
     end
 end
 
-function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
+function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
     rStructToken = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindTypeDefByName)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
@@ -456,7 +453,7 @@ function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
     return mdTokenNil
 end
 
-# function getTypeDefName(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef)::String
+# function getTypeDefName(mdi::CMetaDataImport, td::mdTypeDef)::String
 #     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
 #     rnameLen = Ref(ULONG(0))
 #     rflags = Ref(DWORD(0))
@@ -473,7 +470,7 @@ end
 #     return res == S_OK ? transcode(String, name[begin:rnameLen[]-1]) : ""
 # end
 
-function getTypeDefProps(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef)
+function getTypeDefProps(mdi::CMetaDataImport, td::mdTypeDef)
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rnameLen = Ref(ULONG(0))
     rflags = Ref(DWORD(0))
@@ -493,7 +490,7 @@ function getTypeDefProps(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef)
     throw(HRESULT_FAILED(res))
 end
 
-function fieldProps(mdi::COMWrapper{IMetaDataImport}, fd::mdFieldDef)
+function fieldProps(mdi::CMetaDataImport, fd::mdFieldDef)
     rclass = Ref(mdTypeDef(0))
     fieldname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rfieldnameLen = Ref(ULONG(0))
@@ -526,7 +523,7 @@ function fieldProps(mdi::COMWrapper{IMetaDataImport}, fd::mdFieldDef)
     return ("", UInt8[], DWORD(0))
 end
 
-function enumFields(mdi::COMWrapper{IMetaDataImport}, tok::mdTypeDef)::Vector{mdFieldDef}
+function enumFields(mdi::CMetaDataImport, tok::mdTypeDef)::Vector{mdFieldDef}
     rEnum = Ref(HCORENUM(0))
     fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
     rcTokens = Ref(ULONG(0))
@@ -653,7 +650,7 @@ end
 #     # TBD params
 # end
 
-function enumMembers(mdi::COMWrapper{IMetaDataImport}, tok::mdTypeDef)::Vector{mdToken}
+function enumMembers(mdi::CMetaDataImport, tok::mdTypeDef)::Vector{mdToken}
     rEnum = Ref(HCORENUM(0))
     members = zeros(mdToken, DEFAULT_BUFFER_LEN)
     rcMembers = Ref(ULONG(0))
@@ -671,7 +668,7 @@ function enumMembers(mdi::COMWrapper{IMetaDataImport}, tok::mdTypeDef)::Vector{m
     throw(HRESULT_FAILED(res))
 end
 
-function extends(mdi::COMWrapper{IMetaDataImport}, name::String, extends::String)::Bool
+function extends(mdi::CMetaDataImport, name::String, extends::String)::Bool
     td = findTypeDef(mdi, name)
     tdprops = getTypeDefProps(mdi, td)
     extendsname = getTypeRefName(mdi, tdprops.extends)
@@ -681,8 +678,8 @@ function extends(mdi::COMWrapper{IMetaDataImport}, name::String, extends::String
     return false
 end
 
-isStruct(mdi::COMWrapper{IMetaDataImport}, name::String) = extends(mdi, name, SYSTEM_VALUETYPE_STR)
-isStruct(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef) = isString(mdi, getTypeRefName(mdi, tr))
-isCallback(mdi::COMWrapper{IMetaDataImport}, name::String) = extends(mdi, name, SYSTEM_MULTICAST_DELEGATE_STR)
-isCallback(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef) = isCallback(mdi, getTypeRefName(mdi, tr))
+isStruct(mdi::CMetaDataImport, name::String) = extends(mdi, name, SYSTEM_VALUETYPE_STR)
+isStruct(mdi::CMetaDataImport, tr::mdTypeRef) = isString(mdi, getTypeRefName(mdi, tr))
+isCallback(mdi::CMetaDataImport, name::String) = extends(mdi, name, SYSTEM_MULTICAST_DELEGATE_STR)
+isCallback(mdi::CMetaDataImport, tr::mdTypeRef) = isCallback(mdi, getTypeRefName(mdi, tr))
 

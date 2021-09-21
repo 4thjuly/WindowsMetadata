@@ -4,18 +4,24 @@ include("metadataimport-wrapper.jl")
 
 import Base.@kwdef
 
+const Typemap = Dict{String, DataType}
+
 struct Winmd
-    mdi::COMWrapper{IMetaDataImport}
-    types::Dict{String, DataType}
+    mdi::CMetaDataImport
+    types::Typemap
 end
 
 function Winmd()
-    return Winmd(metadataDispenser() |> metadataImport, Dict{String, DataType}())
+    return Winmd(metadataDispenser() |> metadataImport, Typemap())
 end
 
 function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
     if type == ELEMENT_TYPE_I
         return Ptr{Cvoid}
+    elseif type == ELEMENT_TYPE_I1
+        return Int8
+    elseif type == ELEMENT_TYPE_U1
+        return UInt8
     elseif type == ELEMENT_TYPE_I2
         return Int16
     elseif type == ELEMENT_TYPE_U2
@@ -28,7 +34,7 @@ function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
     return nothing
 end
 
-function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::DataType
+function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken)::DataType
     if mdt & UInt32(TOKEN_TYPE_MASK) == 0x00000000
         # Primitive types
         return convertTypeToJulia(ELEMENT_TYPE(mdt))
@@ -38,13 +44,13 @@ function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::Dat
         if isStruct(mdi, name)
             return createStructType(mdi, name)
         elseif isCallback(mdi, mdt)
-            return Nothing
+            return Ptr{Cvoid}
         end
     end
     return Nothing
 end
 
-function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken, isPtr::Bool, isValue::Bool)::DataType
+function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken, isPtr::Bool, isValue::Bool)::DataType
     # TODO - isValue
     if isPtr
         ptrtype = convertTypeToJulia(mdi, mdt);
@@ -54,7 +60,7 @@ function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken, isPt
     end
 end
 
-convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, name::String) = convertTypeToJulia(mdi, findTypeDef(mdi, name))
+convertTypeToJulia(mdi::CMetaDataImport, name::String) = convertTypeToJulia(mdi, findTypeDef(mdi, name))
 convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd.mdi, name)
 
 convertTypeNameToJulia(name::String) = replace(name, '.' => '_')
@@ -76,7 +82,7 @@ function createStructType(winmd::Winmd, structname::String)
     createStructType(winmd.mdi, structname)
 end
 
-function createStructType(mdi::COMWrapper{IMetaDataImport}, structname::String)
+function createStructType(mdi::CMetaDataImport, structname::String)
     undotname = convertTypeNameToJulia(structname)
     structtype = get(winmd.types, structname, nothing)
     if structtype !== nothing
