@@ -15,7 +15,7 @@ function Winmd()
     return Winmd(metadataDispenser() |> metadataImport, Dict{String, DataType}())
 end
 
-function convertTypeToJulia(type::ELEMENT_TYPE)
+function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
     if type == ELEMENT_TYPE_I
         return Ptr{Cvoid}
     elseif type == ELEMENT_TYPE_I2
@@ -30,7 +30,7 @@ function convertTypeToJulia(type::ELEMENT_TYPE)
     return nothing
 end
 
-function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)
+function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::DataType
     if mdt & 0xFF000000 == 0x00000000
         # Primitive types
         return convertTypeToJulia(ELEMENT_TYPE(mdt))
@@ -38,16 +38,20 @@ function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)
         # Typedef or TypeRef
         name = getName(mdi, mdt)
         if isStruct(mdi, name)
-            createStructType(mdi, name)
+            return createStructType(mdi, name)
         end
-        return 
     end
-    return nothing
+    return Nothing
 end
 
-function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken, isPtr::Bool, isValue::Bool)
-    # TODO - isPtr and isValue
-    convertTypeToJulia(mdi, mdt);
+function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken, isPtr::Bool, isValue::Bool)::DataType
+    # TODO - isValue
+    if isPtr
+        ptrtype = convertTypeToJulia(mdi, mdt);
+        return Ptr{ptrtype}
+    else
+        return convertTypeToJulia(mdi, mdt);
+    end
 end
 
 convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, name::String) = convertTypeToJulia(mdi, findTypeDef(mdi, name))
