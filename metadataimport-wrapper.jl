@@ -4,11 +4,15 @@ import Base.@kwdef
 
 const DEFAULT_BUFFER_LEN = 1024
 const S_OK = 0x00000000
-const CorOpenFlags_ofRead = 0x00000000;
-const TYPEREF_TYPE_FLAG = 0x01000000
-const TYPEDEF_TYPE_FLAG = 0x02000000
-const FIELDDEF_TYPE_FLAG = 0x04000000
-const TYPESPEC_TYPE_FLAG = 0x1b000000
+const CorOpenFlags_ofRead = 0x00000000
+# const TYPEREF_TYPE_FLAG = 0x01000000
+# const TYPEDEF_TYPE_FLAG = 0x02000000
+# const FIELDDEF_TYPE_FLAG = 0x04000000
+# const TYPESPEC_TYPE_FLAG = 0x1b000000
+# const TOKEN_TYPE_MASK = 0xFF000000
+
+const SYSTEM_VALUETYPE_STR = "System.ValueType"
+const SYSTEM_MULTICAST_DELEGATE_STR = "System.MulticastDelegate"
 
 const Byte = UInt8
 const HRESULT = UInt32
@@ -32,6 +36,37 @@ const COR_SIGNATURE = UInt8
 
 struct HRESULT_FAILED <: Exception 
     hresult::HRESULT
+end
+
+@enum TOKEN_TYPE::UInt32 begin
+    TOKEN_TYPE_MODULE               = 0x00000000       
+    TOKEN_TYPE_TYPEREF              = 0x01000000       
+    TOKEN_TYPE_TYPEDEF              = 0x02000000       
+    TOKEN_TYPE_FIELDDEF             = 0x04000000       
+    TOKEN_TYPE_METHODDEF            = 0x06000000       
+    TOKEN_TYPE_PARAMDEF             = 0x08000000       
+    TOKEN_TYPE_INTERFACEIMPL        = 0x09000000       
+    TOKEN_TYPE_MEMBERREF            = 0x0A000000       
+    TOKEN_TYPE_CUSTOMATTRIBUTE      = 0x0C000000       
+    TOKEN_TYPE_PERMISSION           = 0x0E000000       
+    TOKEN_TYPE_SIGNATURE            = 0x11000000       
+    TOKEN_TYPE_EVENT                = 0x14000000       
+    TOKEN_TYPE_PROPERTY             = 0x17000000       
+    TOKEN_TYPE_METHODIMPL           = 0x19000000       
+    TOKEN_TYPE_MODULEREF            = 0x1A000000       
+    TOKEN_TYPE_TYPESPEC             = 0x1B000000       
+    TOKEN_TYPE_ASSEMBLY             = 0x20000000       
+    TOKEN_TYPE_ASSEMBLYREF          = 0x23000000       
+    TOKEN_TYPE_FILE                 = 0x26000000       
+    TOKEN_TYPE_EXPORTEDTYPE         = 0x27000000       
+    TOKEN_TYPE_MANIFESTRESOURCE     = 0x28000000       
+    TOKEN_TYPE_GENERICPARAM         = 0x2A000000       
+    TOKEN_TYPE_METHODSPEC           = 0x2B000000       
+    TOKEN_TYPE_GENERICPARAMCONSTRAINT = 0x2C000000
+    TOKEN_TYPE_STRING               = 0x70000000       
+    TOKEN_TYPE_NAME                 = 0x71000000       
+    TOKEN_TYPE_BASETYPE             = 0x72000000  
+    TOKEN_TYPE_MASK                 = 0xFF000000 
 end
 
 struct GUID
@@ -361,11 +396,11 @@ function uncompressToken(sig::AbstractVector{COR_SIGNATURE})
     val, len = uncompress(sig)
     tok::mdToken = mdTokenNil
     if val & 0x03 == 0x00
-        tok = mdTypeDef(TYPEDEF_TYPE_FLAG | (val >> 2))
+        tok = mdTypeDef(UInt32(TOKEN_TYPE_TYPEDEF) | (val >> 2))
     elseif val & 0x03 == 0x01
-        tok = mdTypeRef(TYPEREF_TYPE_FLAG | (val >> 2))
+        tok = mdTypeRef(UInt32(TOKEN_TYPE_TYPEREF) | (val >> 2))
     elseif val & 0x03 == 0x02
-        tok = mdTypeDef(TYPESPEC_TYPE_FLAG | (val >> 2))
+        tok = mdTypeDef(UInt32(TOKEN_TYPE_TYPESPEC) | (val >> 2))
     end
     return tok, len
 end
@@ -397,10 +432,10 @@ function getTypeRefName(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef)::String
 end
 
 function getName(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::String
-    if mdt & TYPEDEF_TYPE_FLAG == TYPEDEF_TYPE_FLAG
-        props = getTypeDefProps(mdi, mdt)
+    if mdt & UInt32(TOKEN_TYPE_TYPEDEF) == UInt32(TOKEN_TYPE_TYPEDEF)
+        props = getTypeDefProps(mdi, mdt) 
         return props.name
-    elseif mdt & TYPEREF_TYPE_FLAG == TYPEREF_TYPE_FLAG
+    elseif mdt & UInt32(TOKEN_TYPE_TYPEREF) == UInt32(TOKEN_TYPE_TYPEREF)
         return getTypeRefName(mdi, mdt)
     else
         return ""
@@ -636,14 +671,18 @@ function enumMembers(mdi::COMWrapper{IMetaDataImport}, tok::mdTypeDef)::Vector{m
     throw(HRESULT_FAILED(res))
 end
 
-function isStruct(mdi::COMWrapper{IMetaDataImport}, name::String)
+function extends(mdi::COMWrapper{IMetaDataImport}, name::String, extends::String)::Bool
     td = findTypeDef(mdi, name)
     tdprops = getTypeDefProps(mdi, td)
     extendsname = getTypeRefName(mdi, tdprops.extends)
-    if extendsname == SYSTEM_VALUETYPE_STR
+    if extendsname == extends
         return true
     end
     return false
 end
 
+isStruct(mdi::COMWrapper{IMetaDataImport}, name::String) = extends(mdi, name, SYSTEM_VALUETYPE_STR)
 isStruct(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef) = isString(mdi, getTypeRefName(mdi, tr))
+isCallback(mdi::COMWrapper{IMetaDataImport}, name::String) = extends(mdi, name, SYSTEM_MULTICAST_DELEGATE_STR)
+isCallback(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef) = isCallback(mdi, getTypeRefName(mdi, tr))
+

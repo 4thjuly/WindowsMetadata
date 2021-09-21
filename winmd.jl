@@ -2,8 +2,6 @@
 
 include("metadataimport-wrapper.jl")
 
-const SYSTEM_VALUETYPE_STR = "System.ValueType"
-
 import Base.@kwdef
 
 struct Winmd
@@ -31,7 +29,7 @@ function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
 end
 
 function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::DataType
-    if mdt & 0xFF000000 == 0x00000000
+    if mdt & UInt32(TOKEN_TYPE_MASK) == 0x00000000
         # Primitive types
         return convertTypeToJulia(ELEMENT_TYPE(mdt))
     else
@@ -39,6 +37,8 @@ function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::Dat
         name = getName(mdi, mdt)
         if isStruct(mdi, name)
             return createStructType(mdi, name)
+        elseif isCallback(mdi, mdt)
+            return Nothing
         end
     end
     return Nothing
