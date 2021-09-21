@@ -82,8 +82,8 @@ field3type = (fieldProps(mdi, fields[3]).sigblob |> fieldSigblobtoTypeInfo).type
 name = getName(mdi, field3type)
 @show name
 tdWndProc = findTypeDef(mdi, name)
-name, extends = getTypeDefProps(mdi, tdWndProc)
-extendsName = getName(mdi, extends)
+name, ext = getTypeDefProps(mdi, tdWndProc)
+extendsName = getName(mdi, ext)
 @show extendsName
 wndprocMemnbers = enumMembers(mdi, tdWndProc)
 @show wndprocMemnbers
