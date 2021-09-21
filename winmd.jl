@@ -36,8 +36,12 @@ end
 
 function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken)::DataType
     if mdt & UInt32(TOKEN_TYPE_MASK) == 0x00000000
-        # Primitive types
-        return convertTypeToJulia(ELEMENT_TYPE(mdt))
+        if ELEMENT_TYPE(mdt) == ELEMENT_TYPE_ARRAY
+            # TODO
+        else
+            # Primitive types
+            return convertTypeToJulia(ELEMENT_TYPE(mdt))
+        end
     else
         # Typedef or TypeRef
         name = getName(mdi, mdt)

@@ -581,12 +581,29 @@ end
     # TBD
 end
 
+# Only handles single dimension array with assumed lower bound of 0
+function decodeArrayBlob(paramblob::Vector{COR_SIGNATURE})
+    ipb = 1
+    type, len = uncompress(paramblob[ipb:end])
+    ipb += len
+    rank, len = uncompress(paramblob[ipb:end])
+    ipb += len
+    @assert rank == 1
+    cbounds, len = uncompress(paramblob[ipb:end])
+    ipb += len
+    @assert cbounds == 1
+    arraylen, len = uncompress(paramblob[ipb:end])
+    return (type=type, len=len, arraylen=arraylen)
+end
+
 function paramType(paramblob::Vector{COR_SIGNATURE})
     len = 1
     et::ELEMENT_TYPE = ELEMENT_TYPE(paramblob[1])
     type::mdToken = mdTokenNil
     isPtr::Bool = false
     isValueType::Bool = false
+    isArray::Bool = false
+    arraylen::Int = 0
     
     if et == ELEMENT_TYPE_PTR
         isPtr = true
@@ -602,12 +619,15 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
         type, len = uncompressToken(paramblob[2:end])
     elseif et == ELEMENT_TYPE_CLASS
         type, len = uncompressToken(paramblob[2:end])
+    elseif et == ELEMENT_TYPE_ARRAY
+        type, len, arraylen = decodeArrayBlob(paramblob[2:end])
+        isArray = true
     else
         type = paramblob[1]
         len = 1
     end
 
-    return (type=type, len=len, isPtr=isPtr, isValueType=isValueType)
+    return (type=type, decoded=len, isPtr=isPtr, isValueType=isValueType, isArray=isArray, arraylen=arraylen)
 end
 
 function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})

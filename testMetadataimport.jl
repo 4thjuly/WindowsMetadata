@@ -87,5 +87,10 @@ extendsName = getName(mdi, ext)
 @show extendsName
 wndprocMemnbers = enumMembers(mdi, tdWndProc)
 @show wndprocMemnbers
+println()
 
-
+# PAINTSTRUCT
+structToken = findTypeDef(mdi, "Windows.Win32.Gdi.PAINTSTRUCT")
+fields = enumFields(mdi, structToken)
+showFields(fields)
+println()
