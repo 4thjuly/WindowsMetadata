@@ -25,6 +25,7 @@ sigblob = getMethodProps(mdi, mdRegClass)
 println()
 
 typeinfo = methodSigblobtoTypeInfo(sigblob)
+@show typeinfo
 typedref = typeinfo.paramType
 
 @show typedref
@@ -37,7 +38,7 @@ println()
 # Dump struct
 function showFields(fields::Vector{mdFieldDef})
     for field in fields
-        fp = fieldProps(field)
+        fp = fieldProps(mdi, field)
         @show fp.name
         @show fp.sigblob
         @show fieldSigblobtoTypeInfo(fp.sigblob)
@@ -46,24 +47,28 @@ end
 
 structToken = findTypeDef(mdi, structname)
 @show structToken
+tdprops = getTypeDefProps(mdi, structToken)
+@show tdprops.extends
+@show getTypeRefName(mdi, tdprops.extends)
 println()
+
 fields = enumFields(mdi, structToken)
 showFields(fields)
 println()
 
 # Drill in to last field
-name = getName(mdi, ((fields[end] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).type)
+name = getName(mdi, ((fieldProps(mdi, fields[end])).sigblob |> fieldSigblobtoTypeInfo).type)
 @show name
 enumFields(mdi, findTypeDef(mdi, name)) |> showFields
 println()
 
 # convert 
 undotname = convertTypeNameToJulia(name)
-fps = fieldProps(enumFields(mdi, findTypeDef(mdi, name))[1])
+fps = fieldProps(mdi, enumFields(mdi, findTypeDef(mdi, name))[1])
 @show fps.name
 typeinfo = fps.sigblob |> fieldSigblobtoTypeInfo
 @show typeinfo.type
-jt = convertPrimitiveTypeToJulia(ELEMENT_TYPE(typeinfo.type))
+jt = convertTypeToJulia(mdi, typeinfo.type)
 createStructType(undotname, [(fps.name, jt)])
 
 # Test
@@ -72,7 +77,7 @@ dump(hicon)
 println()
 
 # WndProc
-field3type = ((fields[3] |> fieldProps).sigblob |> fieldSigblobtoTypeInfo).type
+field3type = (fieldProps(mdi, fields[3]).sigblob |> fieldSigblobtoTypeInfo).type
 @show field3type
 name = getName(mdi, field3type)
 @show name

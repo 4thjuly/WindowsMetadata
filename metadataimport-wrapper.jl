@@ -396,10 +396,10 @@ function getTypeRefName(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef)::String
     return ""
 end
 
-function getName(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)
+function getName(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)::String
     if mdt & TYPEDEF_TYPE_FLAG == TYPEDEF_TYPE_FLAG
-        name = getTypeDefProps(mdi, mdt)
-        return name
+        props = getTypeDefProps(mdi, mdt)
+        return props.name
     elseif mdt & TYPEREF_TYPE_FLAG == TYPEREF_TYPE_FLAG
         return getTypeRefName(mdi, mdt)
     else
@@ -635,3 +635,15 @@ function enumMembers(mdi::COMWrapper{IMetaDataImport}, tok::mdTypeDef)::Vector{m
     end
     throw(HRESULT_FAILED(res))
 end
+
+function isStruct(mdi::COMWrapper{IMetaDataImport}, name::String)
+    td = findTypeDef(mdi, name)
+    tdprops = getTypeDefProps(mdi, td)
+    extendsname = getTypeRefName(mdi, tdprops.extends)
+    if extendsname == SYSTEM_VALUETYPE_STR
+        return true
+    end
+    return false
+end
+
+isStruct(mdi::COMWrapper{IMetaDataImport}, tr::mdTypeRef) = isString(mdi, getTypeRefName(mdi, tr))

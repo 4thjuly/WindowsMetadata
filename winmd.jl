@@ -2,6 +2,8 @@
 
 include("metadataimport-wrapper.jl")
 
+const SYSTEM_VALUETYPE_STR = "System.ValueType"
+
 import Base.@kwdef
 
 struct Winmd
@@ -13,7 +15,7 @@ function Winmd()
     return Winmd(metadataDispenser() |> metadataImport, Dict{String, DataType}())
 end
 
-function convertPrimitiveTypeToJulia(type::ELEMENT_TYPE)
+function convertTypeToJulia(type::ELEMENT_TYPE)
     if type == ELEMENT_TYPE_I
         return Ptr{Cvoid}
     elseif type == ELEMENT_TYPE_I2
@@ -25,9 +27,31 @@ function convertPrimitiveTypeToJulia(type::ELEMENT_TYPE)
     elseif type == ELEMENT_TYPE_U4
         return UInt32
     end
-    # TBD
-    throw("Not yet implemented")
+    return nothing
 end
+
+function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken)
+    if mdt & 0xFF000000 == 0x00000000
+        # Primitive types
+        return convertTypeToJulia(ELEMENT_TYPE(mdt))
+    else
+        # Typedef or TypeRef
+        name = getName(mdi, mdt)
+        if isStruct(mdi, name)
+            createStructType(mdi, name)
+        end
+        return 
+    end
+    return nothing
+end
+
+function convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, mdt::mdToken, isPtr::Bool, isValue::Bool)
+    # TODO - isPtr and isValue
+    convertTypeToJulia(mdi, mdt);
+end
+
+convertTypeToJulia(mdi::COMWrapper{IMetaDataImport}, name::String) = convertTypeToJulia(mdi, findTypeDef(mdi, name))
+convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd.mdi, name)
 
 convertTypeNameToJulia(name::String) = replace(name, '.' => '_')
 
@@ -43,18 +67,28 @@ function createStructType(structname::String, fields::Vector{Tuple{String, DataT
     return eval(Symbol(structname))
 end
 
-# TODO Handle multiple fields, handle recursion
+# TODO Handle recursion
 function createStructType(winmd::Winmd, structname::String)
-    mdi = winmd.mdi
+    createStructType(winmd.mdi, structname)
+end
+
+function createStructType(mdi::COMWrapper{IMetaDataImport}, structname::String)
     undotname = convertTypeNameToJulia(structname)
     structtype = get(winmd.types, structname, nothing)
     if structtype !== nothing
         return structtype
     else
-        fps = fieldProps(mdi, enumFields(mdi, findTypeDef(mdi, structname))[1])
-        typeinfo = fps.sigblob |> fieldSigblobtoTypeInfo
-        fieldtype = convertPrimitiveTypeToJulia(ELEMENT_TYPE(typeinfo.type))
-        structtype = createStructType(undotname, [(fps.name, fieldtype)])
+        winfields = enumFields(mdi, findTypeDef(mdi, structname))
+        jfields = Vector{Tuple{String, DataType}}(undef, 0)
+        for winfield in winfields 
+            props = fieldProps(mdi, winfield)
+            typeinfo = props.sigblob |> fieldSigblobtoTypeInfo
+            jfield = convertTypeToJulia(mdi, typeinfo.type, typeinfo.isPtr, typeinfo.isValueType)
+            if jfield !== nothing
+                push!(jfields, (props.name, jfield))
+            end
+        end
+        structtype = createStructType(undotname, jfields)
         winmd.types[structname] = structtype 
         return structtype
     end
