@@ -37,7 +37,7 @@ end
 function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken)::DataType
     if mdt & UInt32(TOKEN_TYPE_MASK) == 0x00000000
         if ELEMENT_TYPE(mdt) == ELEMENT_TYPE_ARRAY
-            # TODO
+            return convertTypeNameToJulia(mdi, )
         else
             # Primitive types
             return convertTypeToJulia(ELEMENT_TYPE(mdt))
@@ -54,13 +54,16 @@ function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken)::DataType
     return Nothing
 end
 
-function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken, isPtr::Bool, isValue::Bool)::DataType
+function convertTypeToJulia(mdi::CMetaDataImport, type::mdToken, isPtr::Bool, isValue::Bool, isArray::Bool, arraylen::Int)::DataType
     # TODO - isValue
     if isPtr
-        ptrtype = convertTypeToJulia(mdi, mdt);
+        ptrtype = convertTypeToJulia(mdi, type)
         return Ptr{ptrtype}
+    elseif isArray
+        arraytype = convertTypeToJulia(mdi, type)
+        return NTuple{arraylen, arraytype}
     else
-        return convertTypeToJulia(mdi, mdt);
+        return convertTypeToJulia(mdi, type);
     end
 end
 
@@ -97,7 +100,7 @@ function createStructType(mdi::CMetaDataImport, structname::String)
         for winfield in winfields 
             props = fieldProps(mdi, winfield)
             typeinfo = props.sigblob |> fieldSigblobtoTypeInfo
-            jfield = convertTypeToJulia(mdi, typeinfo.type, typeinfo.isPtr, typeinfo.isValueType)
+            jfield = convertTypeToJulia(mdi, typeinfo[1], typeinfo[3:end]...)
             if jfield !== nothing
                 push!(jfields, (props.name, jfield))
             end

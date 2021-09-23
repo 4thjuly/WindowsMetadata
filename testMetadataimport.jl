@@ -26,7 +26,7 @@ println()
 
 typeinfo = methodSigblobtoTypeInfo(sigblob)
 @show typeinfo
-typedref = typeinfo.paramType
+typedref = typeinfo[3]
 
 @show typedref
 @show isValidToken(mdi, typedref)
@@ -57,7 +57,7 @@ showFields(fields)
 println()
 
 # Drill in to last field
-name = getName(mdi, ((fieldProps(mdi, fields[end])).sigblob |> fieldSigblobtoTypeInfo).type)
+name = getName(mdi, ((fieldProps(mdi, fields[end])).sigblob |> fieldSigblobtoTypeInfo)[1])
 @show name
 enumFields(mdi, findTypeDef(mdi, name)) |> showFields
 println()
@@ -67,8 +67,8 @@ undotname = convertTypeNameToJulia(name)
 fps = fieldProps(mdi, enumFields(mdi, findTypeDef(mdi, name))[1])
 @show fps.name
 typeinfo = fps.sigblob |> fieldSigblobtoTypeInfo
-@show typeinfo.type
-jt = convertTypeToJulia(mdi, typeinfo.type)
+@show typeinfo[1]
+jt = convertTypeToJulia(mdi, typeinfo[1])
 createStructType(undotname, [(fps.name, jt)])
 
 # Test
@@ -77,7 +77,7 @@ dump(hicon)
 println()
 
 # WndProc
-field3type = (fieldProps(mdi, fields[3]).sigblob |> fieldSigblobtoTypeInfo).type
+field3type = (fieldProps(mdi, fields[3]).sigblob |> fieldSigblobtoTypeInfo)[1]
 @show field3type
 name = getName(mdi, field3type)
 @show name

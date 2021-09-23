@@ -11,3 +11,4 @@ println()
 convertTypeToJulia(winmd, "Windows.Win32.Gdi.PAINTSTRUCT")
 dump(Windows_Win32_Gdi_PAINTSTRUCT)
 println()
+

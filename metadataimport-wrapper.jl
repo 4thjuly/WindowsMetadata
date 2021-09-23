@@ -593,7 +593,7 @@ function decodeArrayBlob(paramblob::Vector{COR_SIGNATURE})
     ipb += len
     @assert cbounds == 1
     arraylen, len = uncompress(paramblob[ipb:end])
-    return (type=type, len=len, arraylen=arraylen)
+    return (type, len, arraylen)
 end
 
 function paramType(paramblob::Vector{COR_SIGNATURE})
@@ -627,7 +627,7 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
         len = 1
     end
 
-    return (type=type, decoded=len, isPtr=isPtr, isValueType=isValueType, isArray=isArray, arraylen=arraylen)
+    return (type, len, isPtr, isValueType, isArray, arraylen)
 end
 
 function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
@@ -648,9 +648,9 @@ function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
     i += len
 
     # TODO loop over param count
-    pt, len, isPtr, isValueType = paramType(sigblob[i:end])
+    pt = paramType(sigblob[i:end])
 
-    return (sigkind=sk, retType=rt, paramType=pt, isPtr=isPtr, isValueType=isValueType)
+    return (sk, rt, pt...)
 end
 
 function fieldSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
