@@ -12,3 +12,11 @@ convertTypeToJulia(winmd, "Windows.Win32.Gdi.PAINTSTRUCT")
 dump(Windows_Win32_Gdi_PAINTSTRUCT)
 println()
 
+ps = Windows_Win32_Gdi_PAINTSTRUCT(
+    Windows_Win32_Gdi_HDC(C_NULL),
+    Windows_Win32_SystemServices_BOOL(Int(false)),
+    Windows_Win32_DisplayDevices_RECT(0,0,0,0),
+    Windows_Win32_SystemServices_BOOL(Int(false)),
+    Windows_Win32_SystemServices_BOOL(Int(false)),
+    tuple(zeros(UInt8, 32)...)
+)
