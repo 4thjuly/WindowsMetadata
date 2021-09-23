@@ -68,13 +68,13 @@ fps = fieldProps(mdi, enumFields(mdi, findTypeDef(mdi, name))[1])
 @show fps.name
 typeinfo = fps.sigblob |> fieldSigblobtoTypeInfo
 @show typeinfo[1]
-jt = convertTypeToJulia(mdi, typeinfo[1])
-createStructType(undotname, [(fps.name, jt)])
+# jt = convertTypeToJulia(mdi, typeinfo[1])
+# createStructType(undotname, [(fps.name, jt)])
 
 # Test
-hicon = Windows_Win32_Gdi_HICON(42)
-dump(hicon)
-println()
+# hicon = Windows_Win32_Gdi_HICON(42)
+# dump(hicon)
+# println()
 
 # WndProc
 field3type = (fieldProps(mdi, fields[3]).sigblob |> fieldSigblobtoTypeInfo)[1]

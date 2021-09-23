@@ -8,11 +8,12 @@ const Typemap = Dict{String, DataType}
 
 struct Winmd
     mdi::CMetaDataImport
+    prefix::String
     types::Typemap
 end
 
-function Winmd()
-    return Winmd(metadataDispenser() |> metadataImport, Typemap())
+function Winmd(prefix::String)
+    return Winmd(metadataDispenser() |> metadataImport, prefix, Typemap())
 end
 
 function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
@@ -34,10 +35,11 @@ function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
     return nothing
 end
 
-function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken)::DataType
+function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::DataType
+    mdi = winmd.mdi
     if mdt & UInt32(TOKEN_TYPE_MASK) == 0x00000000
         if ELEMENT_TYPE(mdt) == ELEMENT_TYPE_ARRAY
-            return convertTypeNameToJulia(mdi, )
+            error("NYI")
         else
             # Primitive types
             return convertTypeToJulia(ELEMENT_TYPE(mdt))
@@ -46,7 +48,7 @@ function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken)::DataType
         # Typedef or TypeRef
         name = getName(mdi, mdt)
         if isStruct(mdi, name)
-            return createStructType(mdi, name)
+            return createStructType(winmd, name)
         elseif isCallback(mdi, mdt)
             return Ptr{Cvoid}
         end
@@ -54,23 +56,24 @@ function convertTypeToJulia(mdi::CMetaDataImport, mdt::mdToken)::DataType
     return Nothing
 end
 
-function convertTypeToJulia(mdi::CMetaDataImport, type::mdToken, isPtr::Bool, isValue::Bool, isArray::Bool, arraylen::Int)::DataType
+function convertTypeToJulia(winmd::Winmd, type::mdToken, isPtr::Bool, isValue::Bool, isArray::Bool, arraylen::Int)::DataType
+    mdi = winmd.mdi
     # TODO - isValue
     if isPtr
-        ptrtype = convertTypeToJulia(mdi, type)
+        ptrtype = convertTypeToJulia(winmd, type)
         return Ptr{ptrtype}
     elseif isArray
-        arraytype = convertTypeToJulia(mdi, type)
+        arraytype = convertTypeToJulia(winmd, type)
         return NTuple{arraylen, arraytype}
     else
-        return convertTypeToJulia(mdi, type);
+        return convertTypeToJulia(winmd, type);
     end
 end
 
-convertTypeToJulia(mdi::CMetaDataImport, name::String) = convertTypeToJulia(mdi, findTypeDef(mdi, name))
-convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd.mdi, name)
+convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$name"))
 
 convertTypeNameToJulia(name::String) = replace(name, '.' => '_')
+convertTypeNameToJulia(name::String, prefix::String) = replace(name, "$(prefix)." => "") |> convertTypeNameToJulia
 
 function createStructType(structname::String, fields::Vector{Tuple{String, DataType}})
     fexps = [:($(Symbol(x[1]))::$(x[2])) for x in fields]
@@ -84,13 +87,9 @@ function createStructType(structname::String, fields::Vector{Tuple{String, DataT
     return eval(Symbol(structname))
 end
 
-# TODO Handle recursion
 function createStructType(winmd::Winmd, structname::String)
-    createStructType(winmd.mdi, structname)
-end
-
-function createStructType(mdi::CMetaDataImport, structname::String)
-    undotname = convertTypeNameToJulia(structname)
+    mdi = winmd.mdi
+    undotname = convertTypeNameToJulia(structname, winmd.prefix)
     structtype = get(winmd.types, structname, nothing)
     if structtype !== nothing
         return structtype
@@ -100,7 +99,7 @@ function createStructType(mdi::CMetaDataImport, structname::String)
         for winfield in winfields 
             props = fieldProps(mdi, winfield)
             typeinfo = props.sigblob |> fieldSigblobtoTypeInfo
-            jfield = convertTypeToJulia(mdi, typeinfo[1], typeinfo[3:end]...)
+            jfield = convertTypeToJulia(winmd, typeinfo[1], typeinfo[3:end]...)
             if jfield !== nothing
                 push!(jfields, (props.name, jfield))
             end

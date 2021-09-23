@@ -1,22 +1,27 @@
 include("winmd.jl")
 
-winmd = Winmd()
-# createStructType(winmd, "Windows.Win32.Gdi.HICON")
-# dump(Windows_Win32_Gdi_HICON)
+const FALSE = Int(false)
+const TRUE = Int(1)
 
-convertTypeToJulia(winmd, "Windows.Win32.WindowsAndMessaging.WNDCLASSEXW")
-dump(Windows_Win32_WindowsAndMessaging_WNDCLASSEXW)
+winmd = Winmd("Windows.Win32")
+
+@show convertTypeToJulia(winmd, "WindowsAndMessaging.WNDCLASSEXW")
+dump(WindowsAndMessaging_WNDCLASSEXW)
 println()
 
-convertTypeToJulia(winmd, "Windows.Win32.Gdi.PAINTSTRUCT")
-dump(Windows_Win32_Gdi_PAINTSTRUCT)
+@show convertTypeToJulia(winmd, "Gdi.PAINTSTRUCT")
+dump(Gdi_PAINTSTRUCT)
 println()
 
-ps = Windows_Win32_Gdi_PAINTSTRUCT(
-    Windows_Win32_Gdi_HDC(C_NULL),
-    Windows_Win32_SystemServices_BOOL(Int(false)),
-    Windows_Win32_DisplayDevices_RECT(0,0,0,0),
-    Windows_Win32_SystemServices_BOOL(Int(false)),
-    Windows_Win32_SystemServices_BOOL(Int(false)),
+# TODO - convert single value structs into Julie equivs
+
+ps = Gdi_PAINTSTRUCT(
+    Gdi_HDC(C_NULL),
+    SystemServices_BOOL(FALSE),
+    DisplayDevices_RECT(0,0,0,0),
+    SystemServices_BOOL(FALSE),
+    SystemServices_BOOL(FALSE),
     tuple(zeros(UInt8, 32)...)
 )
+@show ps
+println()
