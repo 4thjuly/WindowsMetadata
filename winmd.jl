@@ -117,29 +117,60 @@ function convertTypeToJulia(winmd::Winmd, sigblob::Vector{COR_SIGNATURE})
     return convertTypeToJulia(winmd, type, isPtr, isValueType, isArray, arraylen)
 end
 
-function convertClassFieldsToJulia(winmd::Winmd, classname::String)
-    classtype = get(winmd.types, classname, nothing)
-    if classtype !== nothing return classtype end
+# function convertClassFieldsToJulia(winmd::Winmd, classname::String, prefixfilter::String="")
+#     classtype = get(winmd.types, classname, nothing)
+#     if classtype !== nothing return classtype end
 
+#     mdi = winmd.mdi
+#     fields = enumFields(mdi, "$(winmd.prefix).$classname")
+#     jfields = Tuple{String, DataType}[]
+#     jinitvals = Any[]
+#     for field in fields
+#         name, sigblob, pval = fieldProps(mdi, field)
+#         if length(prefixfilter) == 0 || startswith(name, prefixfilter)
+#             jfield = convertTypeToJulia(winmd, sigblob)
+#             val = fieldValue(jfield, pval)
+#             push!(jfields, (name, jfield))
+#             push!(jinitvals, val)
+#             # @show name jfield val
+#         end
+#     end
+#     @show length(jfields)
+#     undotname = convertTypeNameToJulia(classname, winmd.prefix)
+#     # jclassname = "$(undotname)_$(prefixfilter)"
+#     jclassname = prefixfilter
+#     @show jclassname
+
+#     structtype = createStructType(jclassname, jfields)
+#     @show structtype
+#     winmd.types["$(winmd.prefix).$classname"] = structtype 
+
+#     # Create initialized instance
+#     inst = Base.invokelatest(structtype, jinitvals...)
+#     return inst
+# end
+
+function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Regex, jclassname::String)
     mdi = winmd.mdi
     fields = enumFields(mdi, "$(winmd.prefix).$classname")
     jfields = Tuple{String, DataType}[]
     jinitvals = Any[]
     for field in fields
         name, sigblob, pval = fieldProps(mdi, field)
-        jfield = convertTypeToJulia(winmd, sigblob)
-        val = fieldValue(jfield, pval)
-        push!(jfields, (name, jfield))
-        push!(jinitvals, val)
-        # @show name jfield val
+        if occursin(filter, name)
+            jfield = convertTypeToJulia(winmd, sigblob)
+            val = fieldValue(jfield, pval)
+            push!(jfields, (name, jfield))
+            push!(jinitvals, val)
+            # @show name jfield val
+        end
     end
-    undotname = convertTypeNameToJulia(classname, winmd.prefix)
-    @time structtype = createStructType(undotname, jfields)
-    winmd.types[classname] = structtype 
+    # @show length(jfields)
+    # @show jclassname
 
-    # Create initialized instance
-    @time inst = Base.invokelatest(structtype, jinitvals...)
-    return inst
+    structtype = createStructType(jclassname, jfields)
+    # @show structtype
+
+    # NB Don't cache these types of partial classes, return a specific instance instead
+    return Base.invokelatest(structtype, jinitvals...)
 end
-# convertFieldsToJulia(winmd::Winmd, name::String) = convertFieldsToJulia(winmd::Winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$name"))
-

@@ -499,7 +499,7 @@ end
 
 function fieldProps(mdi::CMetaDataImport, fd::mdFieldDef)
     rclass = Ref(mdTypeDef(0))
-    fieldname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    fieldname = Vector{Cwchar_t}(undef, DEFAULT_BUFFER_LEN)
     rfieldnameLen = Ref(ULONG(0))
     rattrs = Ref(DWORD(0))
     rpsigblob = Ref(Ptr{COR_SIGNATURE}(0))
@@ -652,8 +652,6 @@ end
 
 function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
     sk::SIG_KIND = SIG_KIND(sigblob[1] & 0xF)
-    # et::ELEMENT_TYPE = ELEMENT_TYPE_VOID
-    # typeToken::mdToken = mdTokenNil
     isPtr::Bool = false
     isValueType::Bool = false
     paramCount::Int = 0
