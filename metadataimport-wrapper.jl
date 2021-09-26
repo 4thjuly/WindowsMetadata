@@ -2,7 +2,7 @@
 
 import Base.@kwdef
 
-const DEFAULT_BUFFER_LEN = 1024
+const DEFAULT_BUFFER_LEN = 64*1024
 const S_OK = 0x00000000
 const CorOpenFlags_ofRead = 0x00000000
 
@@ -226,6 +226,7 @@ function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
 end
 
 function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
+    # @show name
     rStructToken = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindTypeDefByName)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
@@ -487,7 +488,13 @@ function getTypeDefProps(mdi::CMetaDataImport, td::mdTypeDef)
     if res == S_OK
         return (name=transcode(String, name[begin:rnameLen[]-1]), extends=rextends[], flags=rflags[])
     end
+    # @show td
     throw(HRESULT_FAILED(res))
+end
+
+function fieldValue(jtype::DataType, pval::UVCP_CONSTANT)
+    vt = Ptr{jtype}(pval)
+    return unsafe_load(vt)
 end
 
 function fieldProps(mdi::CMetaDataImport, fd::mdFieldDef)
@@ -517,29 +524,42 @@ function fieldProps(mdi::CMetaDataImport, fd::mdFieldDef)
     if res == S_OK
         name = transcode(String, fieldname[begin:rfieldnameLen[]-1])
         sigblob = unsafe_wrap(Vector{COR_SIGNATURE}, rpsigblob[], rsigbloblen[])
-        return (name=name, sigblob=sigblob, cptype=rcplusTypeFlag[])
+        return (name, sigblob, rvalue[], rcplusTypeFlag[])
     end
     
     return ("", UInt8[], DWORD(0))
 end
 
+function enumFields(mdi, rEnum, tok, fields, rcTokens)
+    return @ccall $(mdi.vtbl.EnumFields)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        rEnum::Ref{HCORENUM}, 
+        tok::mdTypeDef, 
+        fields::Ref{mdFieldDef}, 
+        length(fields)::ULONG, 
+        rcTokens::Ref{ULONG}
+    )::HRESULT
+end
+
+function closeEnum(mdi, enum)
+    @ccall $(mdi.vtbl.CloseEnum)(mdi.punk::Ref{COMObject{IMetaDataImport}}, enum::HCORENUM)::Nothing
+end
+
 function enumFields(mdi::CMetaDataImport, tok::mdTypeDef)::Vector{mdFieldDef}
     rEnum = Ref(HCORENUM(0))
+    allfields = mdFieldDef[]
     fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
     rcTokens = Ref(ULONG(0))
-    res = @ccall $(mdi.vtbl.EnumFields)(
-        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-        rEnum::Ref{HCORENUM},
-        tok::mdTypeDef,
-        fields::Ref{mdFieldDef},
-        length(fields)::ULONG,
-        rcTokens::Ref{ULONG}
-        )::HRESULT
-    if res == S_OK
-        return fields[begin:rcTokens[]]
+    res = enumFields(mdi, rEnum, tok, fields, rcTokens)
+    while res == S_OK
+        append!(allfields, fields[1:rcTokens[]])
+        res = enumFields(mdi, rEnum, tok, fields, rcTokens)
     end
-    throw(HRESULT_FAILED(res))
+    closeEnum(mdi, rEnum[])
+    return allfields
 end
+
+enumFields(mdi::CMetaDataImport, typename::String) = enumFields(mdi, findTypeDef(mdi, typename))
 
 @enum SIG_KIND begin
     SIG_KIND_DEFAULT = 0x0 

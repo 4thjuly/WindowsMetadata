@@ -31,7 +31,12 @@ function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
         return Int32
     elseif type == ELEMENT_TYPE_U4
         return UInt32
+    elseif type == ELEMENT_TYPE_R4
+        return Float32
+    elseif type == ELEMENT_TYPE_R8
+            return Float64
     end
+    error("NYI: $type")
     return nothing
 end
 
@@ -87,25 +92,54 @@ function createStructType(structname::String, fields::Vector{Tuple{String, DataT
     return eval(Symbol(structname))
 end
 
-function createStructType(winmd::Winmd, structname::String)
+function createStructType(winmd::Winmd, wstructname::String)
+    structtype = get(winmd.types, wstructname, nothing)
+    if structtype !== nothing return structtype end
+
     mdi = winmd.mdi
-    undotname = convertTypeNameToJulia(structname, winmd.prefix)
-    structtype = get(winmd.types, structname, nothing)
-    if structtype !== nothing
-        return structtype
-    else
-        winfields = enumFields(mdi, findTypeDef(mdi, structname))
-        jfields = Vector{Tuple{String, DataType}}(undef, 0)
-        for winfield in winfields 
-            props = fieldProps(mdi, winfield)
-            typeinfo = props.sigblob |> fieldSigblobtoTypeInfo
-            jfield = convertTypeToJulia(winmd, typeinfo[1], typeinfo[3:end]...)
-            if jfield !== nothing
-                push!(jfields, (props.name, jfield))
-            end
+    winfields = enumFields(mdi, wstructname)
+    jfields = Vector{Tuple{String, DataType}}(undef, 0)
+    for winfield in winfields 
+        name, sigblob = fieldProps(mdi, winfield)
+        jfield = convertTypeToJulia(winmd, sigblob)
+        if jfield !== nothing
+            push!(jfields, (name, jfield))
         end
-        structtype = createStructType(undotname, jfields)
-        winmd.types[structname] = structtype 
-        return structtype
     end
+    undotname = convertTypeNameToJulia(wstructname, winmd.prefix)
+    structtype = createStructType(undotname, jfields)
+    winmd.types[wstructname] = structtype 
+    return structtype
 end
+
+function convertTypeToJulia(winmd::Winmd, sigblob::Vector{COR_SIGNATURE})
+    type, len, isPtr, isValueType, isArray, arraylen = fieldSigblobtoTypeInfo(sigblob)
+    return convertTypeToJulia(winmd, type, isPtr, isValueType, isArray, arraylen)
+end
+
+function convertClassFieldsToJulia(winmd::Winmd, classname::String)
+    classtype = get(winmd.types, classname, nothing)
+    if classtype !== nothing return classtype end
+
+    mdi = winmd.mdi
+    fields = enumFields(mdi, "$(winmd.prefix).$classname")
+    jfields = Tuple{String, DataType}[]
+    jinitvals = Any[]
+    for field in fields
+        name, sigblob, pval = fieldProps(mdi, field)
+        jfield = convertTypeToJulia(winmd, sigblob)
+        val = fieldValue(jfield, pval)
+        push!(jfields, (name, jfield))
+        push!(jinitvals, val)
+        # @show name jfield val
+    end
+    undotname = convertTypeNameToJulia(classname, winmd.prefix)
+    @time structtype = createStructType(undotname, jfields)
+    winmd.types[classname] = structtype 
+
+    # Create initialized instance
+    @time inst = Base.invokelatest(structtype, jinitvals...)
+    return inst
+end
+# convertFieldsToJulia(winmd::Winmd, name::String) = convertFieldsToJulia(winmd::Winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$name"))
+

@@ -25,3 +25,7 @@ ps = Gdi_PAINTSTRUCT(
 )
 @show ps
 println()
+
+stuff = convertClassFieldsToJulia(winmd, "SystemServices.Apis")
+# dump(SystemServices_Apis)
+# @show convertTypeToJulia(winmd, "SystemServices.Apis")

@@ -38,10 +38,10 @@ println()
 # Dump struct
 function showFields(fields::Vector{mdFieldDef})
     for field in fields
-        fp = fieldProps(mdi, field)
-        @show fp.name
-        @show fp.sigblob
-        @show fieldSigblobtoTypeInfo(fp.sigblob)
+        name, sigblob = fieldProps(mdi, field)
+        @show name
+        @show sigblob
+        @show fieldSigblobtoTypeInfo(sigblob)
     end
 end
 
@@ -57,16 +57,17 @@ showFields(fields)
 println()
 
 # Drill in to last field
-name = getName(mdi, ((fieldProps(mdi, fields[end])).sigblob |> fieldSigblobtoTypeInfo)[1])
+_, sigblob = fieldProps(mdi, fields[end])
+name = getName(mdi, fieldSigblobtoTypeInfo(sigblob)[1])
 @show name
 enumFields(mdi, findTypeDef(mdi, name)) |> showFields
 println()
 
 # convert 
 undotname = convertTypeNameToJulia(name)
-fps = fieldProps(mdi, enumFields(mdi, findTypeDef(mdi, name))[1])
-@show fps.name
-typeinfo = fps.sigblob |> fieldSigblobtoTypeInfo
+name, sigblob = fieldProps(mdi, enumFields(mdi, findTypeDef(mdi, name))[1])
+@show name
+typeinfo = fieldSigblobtoTypeInfo(sigblob)
 @show typeinfo[1]
 # jt = convertTypeToJulia(mdi, typeinfo[1])
 # createStructType(undotname, [(fps.name, jt)])
@@ -77,7 +78,8 @@ typeinfo = fps.sigblob |> fieldSigblobtoTypeInfo
 # println()
 
 # WndProc
-field3type = (fieldProps(mdi, fields[3]).sigblob |> fieldSigblobtoTypeInfo)[1]
+_, sigblob = fieldProps(mdi, fields[3])
+field3type,_ = fieldSigblobtoTypeInfo(sigblob)
 @show field3type
 name = getName(mdi, field3type)
 @show name
@@ -93,4 +95,10 @@ println()
 structToken = findTypeDef(mdi, "Windows.Win32.Gdi.PAINTSTRUCT")
 fields = enumFields(mdi, structToken)
 showFields(fields)
+println()
+
+# Enums
+structToken = findTypeDef(mdi, "Windows.Win32.SystemServices.Apis")
+fields = enumFields(mdi, structToken)
+@show length(fields)
 println()
