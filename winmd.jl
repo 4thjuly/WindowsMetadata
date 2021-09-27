@@ -100,7 +100,7 @@ function createStructType(winmd::Winmd, wstructname::String)
     winfields = enumFields(mdi, wstructname)
     jfields = Vector{Tuple{String, DataType}}(undef, 0)
     for winfield in winfields 
-        name, sigblob = fieldProps(mdi, winfield)
+        name, sigblob = getFieldProps(mdi, winfield)
         jfield = convertTypeToJulia(winmd, sigblob)
         if jfield !== nothing
             push!(jfields, (name, jfield))
@@ -113,7 +113,7 @@ function createStructType(winmd::Winmd, wstructname::String)
 end
 
 function convertTypeToJulia(winmd::Winmd, sigblob::Vector{COR_SIGNATURE})
-    type, len, isPtr, isValueType, isArray, arraylen = fieldSigblobtoTypeInfo(sigblob)
+    type, len, isPtr, isValueType, isArray, arraylen = fieldSigblobToTypeInfo(sigblob)
     return convertTypeToJulia(winmd, type, isPtr, isValueType, isArray, arraylen)
 end
 
@@ -156,7 +156,7 @@ function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Rege
     jfields = Tuple{String, DataType}[]
     jinitvals = Any[]
     for field in fields
-        name, sigblob, pval = fieldProps(mdi, field)
+        name, sigblob, pval = getFieldProps(mdi, field)
         if occursin(filter, name)
             jfield = convertTypeToJulia(winmd, sigblob)
             val = fieldValue(jfield, pval)
@@ -174,3 +174,12 @@ function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Rege
     # NB Don't cache these types of partial classes, return a specific instance instead
     return Base.invokelatest(structtype, jinitvals...)
 end
+
+function convertFunctionToJulia(winmd::Winmd, class::mdTypeDef, methodname::String)
+    # Get function params
+    # Convert to julia types (recurse to create needed types)
+    # Simple types, ptrs
+    # out types need refs, make the caller pass them in
+end
+
+convertFunctionToJulia(winmd::Winmd, classname::String, methodname::String) = convertFunctionToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$classname"), methodname)

@@ -497,7 +497,7 @@ function fieldValue(jtype::DataType, pval::UVCP_CONSTANT)
     return unsafe_load(vt)
 end
 
-function fieldProps(mdi::CMetaDataImport, fd::mdFieldDef)
+function getFieldProps(mdi::CMetaDataImport, fd::mdFieldDef)
     rclass = Ref(mdTypeDef(0))
     fieldname = Vector{Cwchar_t}(undef, DEFAULT_BUFFER_LEN)
     rfieldnameLen = Ref(ULONG(0))
@@ -616,6 +616,16 @@ function decodeArrayBlob(paramblob::Vector{COR_SIGNATURE})
     return (type, len, arraylen)
 end
 
+# const TypeInfo = Tuple{mdTypeDef, Int, Bool, Bool, Bool, Int}
+
+# struct TypeInfo
+#     type::mdTypeDef
+#     isPtr::Bool
+#     isValueType::Bool
+#     isArray::Bool
+#     arrayLen::Int
+# end
+
 function paramType(paramblob::Vector{COR_SIGNATURE})
     len = 1
     et::ELEMENT_TYPE = ELEMENT_TYPE(paramblob[1])
@@ -631,17 +641,22 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
         if subet == ELEMENT_TYPE_VALUETYPE
             isValueType = true
             type, len = uncompressToken(paramblob[3:end])
+            len += 2
         else
             type, len = uncompress(paramblob[2:end])
+            len += 1
         end
     elseif et == ELEMENT_TYPE_VALUETYPE
         isValueType = true
         type, len = uncompressToken(paramblob[2:end])
+        len += 1
     elseif et == ELEMENT_TYPE_CLASS
         type, len = uncompressToken(paramblob[2:end])
+        len += 1
     elseif et == ELEMENT_TYPE_ARRAY
-        type, len, arraylen = decodeArrayBlob(paramblob[2:end])
         isArray = true
+        type, len, arraylen = decodeArrayBlob(paramblob[2:end])
+        len += 1
     else
         type = paramblob[1]
         len = 1
@@ -650,11 +665,12 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
     return (type, len, isPtr, isValueType, isArray, arraylen)
 end
 
-function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
+function methodSigblobToTypeInfos(sigblob::Vector{COR_SIGNATURE})
     sk::SIG_KIND = SIG_KIND(sigblob[1] & 0xF)
     isPtr::Bool = false
     isValueType::Bool = false
     paramCount::Int = 0
+    types = Tuple{mdTypeDef, Bool, Bool, Bool, Int}[]
     i = 2
 
     # NB Assumes c-api
@@ -662,16 +678,29 @@ function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
     paramCount, len = uncompress(sigblob[i:end])
     i += len
 
-    rt, len = paramType(sigblob[i:end])
+    rettype, len, isPtr, isValueType, isArray, arrayLen = paramType(sigblob[i:end])
+    push!(types, (rettype, isPtr, isValueType, isArray, arrayLen))
     i += len
 
     # TODO loop over param count
-    pt = paramType(sigblob[i:end])
+    while paramCount > 0 
+        type, len, isPtr, isValueType, isArray, arrayLen = paramType(sigblob[i:end])
+        push!(types, (type, isPtr, isValueType, isArray, arrayLen))
+        i += len
+        paramCount -= 1
+    end
 
-    return (sk, rt, pt...)
+    return types
 end
 
-function fieldSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
+# function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
+#     if SIG_KIND(sigblob[1]) == SIG_KIND_FIELD
+#         return paramType(sigblob[2:end])
+#     end
+#     throw("bad signature")
+# end
+
+function fieldSigblobToTypeInfo(sigblob::Vector{COR_SIGNATURE})
     if SIG_KIND(sigblob[1]) == SIG_KIND_FIELD
         return paramType(sigblob[2:end])
     end
@@ -721,3 +750,27 @@ isStruct(mdi::CMetaDataImport, tr::mdTypeRef) = isString(mdi, getTypeRefName(mdi
 isCallback(mdi::CMetaDataImport, name::String) = extends(mdi, name, SYSTEM_MULTICAST_DELEGATE_STR)
 isCallback(mdi::CMetaDataImport, tr::mdTypeRef) = isCallback(mdi, getTypeRefName(mdi, tr))
 
+function enumParams(mdi, rEnum, mdtoken, params, rcparams)
+    return @ccall $(mdi.vtbl.EnumParams)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        rEnum::Ref{HCORENUM}, 
+        mdtoken::mdMethodDef, 
+        params::Ref{mdParamDef}, 
+        length(params)::ULONG, 
+        rcparams::Ref{ULONG}
+    )::HRESULT
+end
+
+function enumParams(mdi::CMetaDataImport, mdtoken::mdMethodDef)::Vector{mdParamDef}
+    rEnum = Ref(HCORENUM(0))
+    allparams = mdParamDef[]
+    params = zeros(mdParamDef, DEFAULT_BUFFER_LEN)
+    rcparams = Ref(ULONG(0))
+    res = enumParams(mdi, rEnum, mdtoken, params, rcparams)
+    while res == S_OK
+        append!(allparams, params[1:rcparams[]])
+        res = enumParams(mdi, rEnum, mdtoken, params, rcparams)
+    end
+    closeEnum(mdi, rEnum[])
+    return allparams
+end

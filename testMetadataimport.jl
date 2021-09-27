@@ -24,9 +24,9 @@ sigblob = getMethodProps(mdi, mdRegClass)
 @show sigblob
 println()
 
-typeinfo = methodSigblobtoTypeInfo(sigblob)
-@show typeinfo
-typedref = typeinfo[3]
+types = methodSigblobToTypeInfos(sigblob)
+@show types[2]
+typedref = types[2][1]
 
 @show typedref
 @show isValidToken(mdi, typedref)
@@ -38,10 +38,10 @@ println()
 # Dump struct
 function showFields(fields::Vector{mdFieldDef})
     for field in fields
-        name, sigblob = fieldProps(mdi, field)
+        name, sigblob = getFieldProps(mdi, field)
         @show name
         @show sigblob
-        @show fieldSigblobtoTypeInfo(sigblob)
+        @show fieldSigblobToTypeInfo(sigblob)
     end
 end
 
@@ -57,17 +57,17 @@ showFields(fields)
 println()
 
 # Drill in to last field
-_, sigblob = fieldProps(mdi, fields[end])
-name = getName(mdi, fieldSigblobtoTypeInfo(sigblob)[1])
+_, sigblob = getFieldProps(mdi, fields[end])
+name = getName(mdi, fieldSigblobToTypeInfo(sigblob)[1])
 @show name
 enumFields(mdi, findTypeDef(mdi, name)) |> showFields
 println()
 
 # convert 
 undotname = convertTypeNameToJulia(name)
-name, sigblob = fieldProps(mdi, enumFields(mdi, findTypeDef(mdi, name))[1])
+name, sigblob = getFieldProps(mdi, enumFields(mdi, findTypeDef(mdi, name))[1])
 @show name
-typeinfo = fieldSigblobtoTypeInfo(sigblob)
+typeinfo = fieldSigblobToTypeInfo(sigblob)
 @show typeinfo[1]
 # jt = convertTypeToJulia(mdi, typeinfo[1])
 # createStructType(undotname, [(fps.name, jt)])
@@ -78,8 +78,8 @@ typeinfo = fieldSigblobtoTypeInfo(sigblob)
 # println()
 
 # WndProc
-_, sigblob = fieldProps(mdi, fields[3])
-field3type,_ = fieldSigblobtoTypeInfo(sigblob)
+_, sigblob = getFieldProps(mdi, fields[3])
+field3type,_ = fieldSigblobToTypeInfo(sigblob)
 @show field3type
 name = getName(mdi, field3type)
 @show name
@@ -101,4 +101,27 @@ println()
 structToken = findTypeDef(mdi, "Windows.Win32.SystemServices.Apis")
 fields = enumFields(mdi, structToken)
 @show length(fields)
+println()
+
+# More method stuff
+function showParams(mdi::CMetaDataImport, params::Vector{mdParamDef})
+    for param in params
+        name = getParamProps(mdi, param)
+        @show name
+    end
+end
+
+method = "GetModuleHandleExW"
+@show method
+tdapis = findTypeDef(mdi, "Windows.Win32.SystemServices.Apis")
+@show tdapis
+mdgmh = findMethod(mdi, tdapis, method)
+@show mdgmh
+# mref, importname = getPInvokeMap(mdi, mdgmh)
+params = enumParams(mdi, mdgmh)
+showParams(mdi, params)
+sigblob = getMethodProps(mdi, mdgmh)
+@show sigblob
+paramtypes = methodSigblobToTypeInfos(sigblob)
+@show paramtypes
 println()
