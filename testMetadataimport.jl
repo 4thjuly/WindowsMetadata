@@ -104,10 +104,11 @@ fields = enumFields(mdi, structToken)
 println()
 
 # More method stuff
-function showParams(mdi::CMetaDataImport, params::Vector{mdParamDef})
-    for param in params
-        name = getParamProps(mdi, param)
-        @show name
+function showParams(mdi::CMetaDataImport, params::Vector{mdParamDef}, paramtypes::Vector{Tuple{mdTypeDef, Bool, Bool, Bool, Int}})
+    for i = 1:length(params)
+        name = getParamProps(mdi, params[i])
+        type = paramtypes[i][1]
+        @show name type
     end
 end
 
@@ -118,10 +119,10 @@ tdapis = findTypeDef(mdi, "Windows.Win32.SystemServices.Apis")
 mdgmh = findMethod(mdi, tdapis, method)
 @show mdgmh
 # mref, importname = getPInvokeMap(mdi, mdgmh)
-params = enumParams(mdi, mdgmh)
-showParams(mdi, params)
 sigblob = getMethodProps(mdi, mdgmh)
 @show sigblob
 paramtypes = methodSigblobToTypeInfos(sigblob)
 @show paramtypes
+params = enumParams(mdi, mdgmh)
+showParams(mdi, params, paramtypes)
 println()
