@@ -180,6 +180,15 @@ function convertFunctionToJulia(winmd::Winmd, class::mdTypeDef, methodname::Stri
     # Convert to julia types (recurse to create needed types)
     # Simple types, ptrs
     # out types need refs, make the caller pass them in
+
+    mref, importname = getPInvokeMap(mdi, mdgmh)
+    moduleName = getModuleRefProps(mdi, mref)
+    mdgmh = findMethod(mdi, findTypeDef(mdi, "Windows.Win32.SystemServices.Apis"), methodname)
+    sigblob = getMethodProps(mdi, mdgmh)
+    paramtypes = methodSigblobToTypeInfos(sigblob)
+    params = enumParams(mdi, mdgmh)
+
+
 end
 
 convertFunctionToJulia(winmd::Winmd, classname::String, methodname::String) = convertFunctionToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$classname"), methodname)

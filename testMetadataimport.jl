@@ -118,7 +118,9 @@ tdapis = findTypeDef(mdi, "Windows.Win32.SystemServices.Apis")
 @show tdapis
 mdgmh = findMethod(mdi, tdapis, method)
 @show mdgmh
-# mref, importname = getPInvokeMap(mdi, mdgmh)
+mref, importname = getPInvokeMap(mdi, mdgmh)
+moduleName = getModuleRefProps(mdi, mref)
+@show moduleName importname
 sigblob = getMethodProps(mdi, mdgmh)
 @show sigblob
 paramtypes = methodSigblobToTypeInfos(sigblob)
