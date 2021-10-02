@@ -205,7 +205,6 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
     jtypes = convertParamTypesToJulia(winmd, typeinfos)
     @show methodname modulename importname paramnames jtypes
 
-    # Convert param types to julia
     # Generate stub function
 
 end
