@@ -175,19 +175,38 @@ function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Rege
     return Base.invokelatest(structtype, jinitvals...)
 end
 
-function convertFunctionToJulia(winmd::Winmd, class::mdTypeDef, methodname::String)
-    # Get function params
-    # Convert to julia types (recurse to create needed types)
-    # Simple types, ptrs
-    # out types need refs, make the caller pass them in
+function paramNames(mdi::CMetaDataImport, params::Vector{mdParamDef})
+    paramnames = String[]
+    for param in params
+        name = getParamProps(mdi, param)
+        push!(paramnames, name)
+    end
+    return paramnames
+end
 
+function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, Bool, Bool, Bool, Int}})
+    jtypes = DataType[]
+    for typeinfo in typeinfos
+        jtype = convertTypeToJulia(winmd, typeinfo[1], typeinfo[2], typeinfo[3], typeinfo[4], typeinfo[5])
+        push!(jtypes, jtype)
+    end
+    return jtypes
+end 
+
+function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::String)
+    mdi = winmd.mdi
+    mdgmh = findMethod(mdi, mdclass, methodname)
     mref, importname = getPInvokeMap(mdi, mdgmh)
-    moduleName = getModuleRefProps(mdi, mref)
-    mdgmh = findMethod(mdi, findTypeDef(mdi, "Windows.Win32.SystemServices.Apis"), methodname)
+    modulename = getModuleRefProps(mdi, mref)
     sigblob = getMethodProps(mdi, mdgmh)
-    paramtypes = methodSigblobToTypeInfos(sigblob)
+    typeinfos = methodSigblobToTypeInfos(sigblob)
     params = enumParams(mdi, mdgmh)
+    paramnames = paramNames(mdi, params)
+    jtypes = convertParamTypesToJulia(winmd, typeinfos)
+    @show methodname modulename importname paramnames jtypes
 
+    # Convert param types to julia
+    # Generate stub function
 
 end
 

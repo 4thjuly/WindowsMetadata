@@ -32,12 +32,12 @@ const idi = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDI_(?!.
 const idc = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDC_(?!._))", "IDC")
 const wm = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WM_(?!._))", "WM")
 
-function GetModuleHandleExW(flags::UInt32, lpModuleName::Ptr{UInt16}, phModule::Ref{Ptr{Cvoid}})
-    ccall((:GetModuleHandleExW, "kernel32"), Bool, (UInt32, Ptr{UInt16}, Ref{Ptr{Cvoid}}), flags, lpModuleName, phModule)
-end
+# function GetModuleHandleExW(flags::UInt32, lpModuleName::Ptr{UInt16}, phModule::Ref{Ptr{Cvoid}})
+#     ccall((:GetModuleHandleExW, "kernel32"), Bool, (UInt32, Ptr{UInt16}, Ref{Ptr{Cvoid}}), flags, lpModuleName, phModule)
+# end
 
-rmod = Ref(Ptr{Cvoid}(C_NULL))
-@show GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
-@show rmod[]
+# rmod = Ref(Ptr{Cvoid}(C_NULL))
+# @show GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
+# @show rmod[]
 
-convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleW")
+convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
