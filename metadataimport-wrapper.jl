@@ -306,6 +306,14 @@ function getParamForMethodIndex(mdi::CMetaDataImport, md::mdMethodDef, i::Int)
     return mdTokenNil
 end
 
+const CorParamAttr_pdIn                        =   0x00000001
+const CorParamAttr_pdOut                       =   0x00000002  
+const CorParamAttr_pdOptional                  =   0x00000010  
+const CorParamAttr_pdReservedMask              =   0x0000f000  
+const CorParamAttr_pdHasDefault                =   0x00001000  
+const CorParamAttr_pdHasFieldMarshal           =   0x00002000  
+const CorParamAttr_pdUnused                    =   0x0000cfe0  
+
 function getParamProps(mdi::CMetaDataImport, paramDef::mdParamDef)
     paramName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
     rparamMethodDef = Ref(mdMethodDef(0))
@@ -334,9 +342,9 @@ function getParamProps(mdi::CMetaDataImport, paramDef::mdParamDef)
     # @show rparamNameLen[]
     # println("Param: ", transcode(String, paramName[begin:rparamNameLen[]-1]))
     if res == S_OK
-        return transcode(String, paramName[begin:rparamNameLen[]-1])
+        return transcode(String, paramName[begin:rparamNameLen[]-1]), rattr[]
     end
-    return ""
+    return "", 0
 end
 
 function getMethodProps(mdi::CMetaDataImport, methodDef::mdMethodDef)

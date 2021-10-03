@@ -175,13 +175,13 @@ function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Rege
     return Base.invokelatest(structtype, jinitvals...)
 end
 
-function paramNames(mdi::CMetaDataImport, params::Vector{mdParamDef})
-    paramnames = String[]
+function paramNamesAndAttrs(mdi::CMetaDataImport, params::Vector{mdParamDef})
+    results = Tuple{String, DWORD}[]
     for param in params
-        name = getParamProps(mdi, param)
-        push!(paramnames, name)
+        name, attr = getParamProps(mdi, param)
+        push!(results, (name, attr))
     end
-    return paramnames
+    return results
 end
 
 function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, Bool, Bool, Bool, Int}})
@@ -201,9 +201,9 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
     sigblob = getMethodProps(mdi, mdgmh)
     typeinfos = methodSigblobToTypeInfos(sigblob)
     params = enumParams(mdi, mdgmh)
-    paramnames = paramNames(mdi, params)
+    namesAndAttrs = paramNamesAndAttrs(mdi, params)
     jtypes = convertParamTypesToJulia(winmd, typeinfos)
-    @show methodname modulename importname paramnames jtypes
+    @show methodname modulename importname namesAndAttrs typeinfos jtypes
 
     # Generate stub function
 
