@@ -61,18 +61,19 @@ function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::DataType
     return Nothing
 end
 
-function convertTypeToJulia(winmd::Winmd, type::mdToken, isPtr::Bool, isValue::Bool, isArray::Bool, arraylen::Int)::DataType
+# function convertTypeToJulia(winmd::Winmd, type::mdToken, isPtr::Bool, isValue::Bool, isArray::Bool, arraylen::Int)::DataType
+function convertTypeToJulia(winmd::Winmd, type::mdToken, typeattr::UInt32, arraylen::Int)::DataType
     mdi = winmd.mdi
-    # TODO - isValue
-    if isPtr
+    if typeattr & TYPEATTR_PTR == TYPEATTR_PTR
         ptrtype = convertTypeToJulia(winmd, type)
         return Ptr{ptrtype}
-    elseif isArray
+    elseif typeattr & TYPEATTR_ARRAY == TYPEATTR_ARRAY
         arraytype = convertTypeToJulia(winmd, type)
         return NTuple{arraylen, arraytype}
     else
         return convertTypeToJulia(winmd, type);
     end
+    # TODO - isValue
 end
 
 convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$name"))
@@ -113,8 +114,9 @@ function createStructType(winmd::Winmd, wstructname::String)
 end
 
 function convertTypeToJulia(winmd::Winmd, sigblob::Vector{COR_SIGNATURE})
-    type, len, isPtr, isValueType, isArray, arraylen = fieldSigblobToTypeInfo(sigblob)
-    return convertTypeToJulia(winmd, type, isPtr, isValueType, isArray, arraylen)
+    # type, len, isPtr, isValueType, isArray, arraylen = fieldSigblobToTypeInfo(sigblob)
+    type, len, typeattr, arraylen = fieldSigblobToTypeInfo(sigblob)
+    return convertTypeToJulia(winmd, type, typeattr, arraylen)
 end
 
 # function convertClassFieldsToJulia(winmd::Winmd, classname::String, prefixfilter::String="")
@@ -184,10 +186,11 @@ function paramNamesAndAttrs(mdi::CMetaDataImport, params::Vector{mdParamDef})
     return results
 end
 
-function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, Bool, Bool, Bool, Int}})
+# function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, Bool, Bool, Bool, Int}})
+function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, UInt32, Int}})
     jtypes = DataType[]
     for typeinfo in typeinfos
-        jtype = convertTypeToJulia(winmd, typeinfo[1], typeinfo[2], typeinfo[3], typeinfo[4], typeinfo[5])
+        jtype = convertTypeToJulia(winmd, typeinfo[1], typeinfo[2], typeinfo[3])
         push!(jtypes, jtype)
     end
     return jtypes

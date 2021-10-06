@@ -104,7 +104,8 @@ fields = enumFields(mdi, structToken)
 println()
 
 # More method stuff
-function showParams(mdi::CMetaDataImport, params::Vector{mdParamDef}, paramtypes::Vector{Tuple{mdTypeDef, Bool, Bool, Bool, Int}})
+# function showParams(mdi::CMetaDataImport, params::Vector{mdParamDef}, paramtypes::Vector{Tuple{mdTypeDef, Bool, Bool, Bool, Int}})
+function showParams(mdi::CMetaDataImport, params::Vector{mdParamDef}, paramtypes::Vector{Tuple{mdTypeDef, UInt32, Int}})
     for i = 1:length(params)
         name = getParamProps(mdi, params[i])
         type = paramtypes[i][1]

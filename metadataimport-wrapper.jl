@@ -634,20 +634,28 @@ end
 #     arrayLen::Int
 # end
 
+const TYPEATTR_NONE         = 0x00000000
+const TYPEATTR_PTR          = 0x00000001
+const TYPEATTR_VALUETYPE    = 0x00000002
+const TYPEATTR_ARRAY        = 0x00000004
+
 function paramType(paramblob::Vector{COR_SIGNATURE})
     len = 1
     et::ELEMENT_TYPE = ELEMENT_TYPE(paramblob[1])
     type::mdToken = mdTokenNil
-    isPtr::Bool = false
-    isValueType::Bool = false
-    isArray::Bool = false
+    typeattr::UInt32 = TYPEATTR_NONE
+    # isPtr::Bool = false
+    # isValueType::Bool = false
+    # isArray::Bool = false
     arraylen::Int = 0
     
     if et == ELEMENT_TYPE_PTR
-        isPtr = true
+        # isPtr = true
+        typeattr |= TYPEATTR_PTR
         subet = ELEMENT_TYPE(paramblob[2])
         if subet == ELEMENT_TYPE_VALUETYPE
-            isValueType = true
+            # isValueType = true
+            typeattr |= TYPEATTR_VALUETYPE
             type, len = uncompressToken(paramblob[3:end])
             len += 2
         else
@@ -655,14 +663,16 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
             len += 1
         end
     elseif et == ELEMENT_TYPE_VALUETYPE
-        isValueType = true
+        # isValueType = true
+        typeattr |= TYPEATTR_VALUETYPE
         type, len = uncompressToken(paramblob[2:end])
         len += 1
     elseif et == ELEMENT_TYPE_CLASS
         type, len = uncompressToken(paramblob[2:end])
         len += 1
     elseif et == ELEMENT_TYPE_ARRAY
-        isArray = true
+        # isArray = true
+        typeattr |= TYPEATTR_ARRAY
         type, len, arraylen = decodeArrayBlob(paramblob[2:end])
         len += 1
     else
@@ -670,30 +680,35 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
         len = 1
     end
 
-    return (type, len, isPtr, isValueType, isArray, arraylen)
+    # return (type, len, isPtr, isValueType, isArray, arraylen)
+    return (type, len, typeattr, arraylen)
 end
 
 function methodSigblobToTypeInfos(sigblob::Vector{COR_SIGNATURE})
     sk::SIG_KIND = SIG_KIND(sigblob[1] & 0xF)
-    isPtr::Bool = false
-    isValueType::Bool = false
+    # isPtr::Bool = false
+    # isValueType::Bool = false
+    typeattr = TYPEATTR_NONE
     paramCount::Int = 0
-    types = Tuple{mdTypeDef, Bool, Bool, Bool, Int}[]
+    # types = Tuple{mdTypeDef, Bool, Bool, Bool, Int}[]
+    types = Tuple{mdTypeDef, UInt32, Int}[]
     i = 2
 
     # NB Assumes c-api
-    
     paramCount, len = uncompress(sigblob[i:end])
     i += len
 
-    rettype, len, isPtr, isValueType, isArray, arrayLen = paramType(sigblob[i:end])
-    push!(types, (rettype, isPtr, isValueType, isArray, arrayLen))
+    # rettype, len, isPtr, isValueType, isArray, arrayLen = paramType(sigblob[i:end])
+    rettype, len, typeattr, arrayLen = paramType(sigblob[i:end])
+    push!(types, (rettype, typeattr, arrayLen))
     i += len
 
     # TODO loop over param count
     while paramCount > 0 
-        type, len, isPtr, isValueType, isArray, arrayLen = paramType(sigblob[i:end])
-        push!(types, (type, isPtr, isValueType, isArray, arrayLen))
+        # type, len, isPtr, isValueType, isArray, arrayLen = paramType(sigblob[i:end])
+        type, len, typeattr, arrayLen = paramType(sigblob[i:end])
+        # push!(types, (type, isPtr, isValueType, isArray, arrayLen))
+        push!(types, (type, typeattr, arrayLen))
         i += len
         paramCount -= 1
     end
