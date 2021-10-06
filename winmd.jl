@@ -61,7 +61,6 @@ function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::DataType
     return Nothing
 end
 
-# function convertTypeToJulia(winmd::Winmd, type::mdToken, isPtr::Bool, isValue::Bool, isArray::Bool, arraylen::Int)::DataType
 function convertTypeToJulia(winmd::Winmd, type::mdToken, typeattr::UInt32, arraylen::Int)::DataType
     mdi = winmd.mdi
     if typeattr & TYPEATTR_PTR == TYPEATTR_PTR
@@ -88,7 +87,6 @@ function createStructType(structname::String, fields::Vector{Tuple{String, DataT
             $(fexps...)
         end
     end
-    # dump(sexp)
     eval(sexp)
     return eval(Symbol(structname))
 end
@@ -114,43 +112,9 @@ function createStructType(winmd::Winmd, wstructname::String)
 end
 
 function convertTypeToJulia(winmd::Winmd, sigblob::Vector{COR_SIGNATURE})
-    # type, len, isPtr, isValueType, isArray, arraylen = fieldSigblobToTypeInfo(sigblob)
     type, len, typeattr, arraylen = fieldSigblobToTypeInfo(sigblob)
     return convertTypeToJulia(winmd, type, typeattr, arraylen)
 end
-
-# function convertClassFieldsToJulia(winmd::Winmd, classname::String, prefixfilter::String="")
-#     classtype = get(winmd.types, classname, nothing)
-#     if classtype !== nothing return classtype end
-
-#     mdi = winmd.mdi
-#     fields = enumFields(mdi, "$(winmd.prefix).$classname")
-#     jfields = Tuple{String, DataType}[]
-#     jinitvals = Any[]
-#     for field in fields
-#         name, sigblob, pval = fieldProps(mdi, field)
-#         if length(prefixfilter) == 0 || startswith(name, prefixfilter)
-#             jfield = convertTypeToJulia(winmd, sigblob)
-#             val = fieldValue(jfield, pval)
-#             push!(jfields, (name, jfield))
-#             push!(jinitvals, val)
-#             # @show name jfield val
-#         end
-#     end
-#     @show length(jfields)
-#     undotname = convertTypeNameToJulia(classname, winmd.prefix)
-#     # jclassname = "$(undotname)_$(prefixfilter)"
-#     jclassname = prefixfilter
-#     @show jclassname
-
-#     structtype = createStructType(jclassname, jfields)
-#     @show structtype
-#     winmd.types["$(winmd.prefix).$classname"] = structtype 
-
-#     # Create initialized instance
-#     inst = Base.invokelatest(structtype, jinitvals...)
-#     return inst
-# end
 
 function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Regex, jclassname::String)
     mdi = winmd.mdi
@@ -186,7 +150,6 @@ function paramNamesAndAttrs(mdi::CMetaDataImport, params::Vector{mdParamDef})
     return results
 end
 
-# function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, Bool, Bool, Bool, Int}})
 function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, UInt32, Int}})
     jtypes = DataType[]
     for typeinfo in typeinfos

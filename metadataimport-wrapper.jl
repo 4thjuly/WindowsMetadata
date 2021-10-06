@@ -226,7 +226,6 @@ function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
 end
 
 function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
-    # @show name
     rStructToken = Ref(mdToken(0))
     res = @ccall $(mdi.vtbl.FindTypeDefByName)(
         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
@@ -336,11 +335,6 @@ function getParamProps(mdi::CMetaDataImport, paramDef::mdParamDef)
         rpvalue::Ptr{Cvoid},
         rcchValue::Ptr{ULONG}
         )::HRESULT
-    # @show res
-    # @show rparamMethodDef[]
-    # @show rseq[]
-    # @show rparamNameLen[]
-    # println("Param: ", transcode(String, paramName[begin:rparamNameLen[]-1]))
     if res == S_OK
         return transcode(String, paramName[begin:rparamNameLen[]-1]), rattr[]
     end
@@ -369,11 +363,6 @@ function getMethodProps(mdi::CMetaDataImport, methodDef::mdMethodDef)
         rrva::Ref{ULONG},
         rflags::Ref{DWORD}
         )::HRESULT
-    # @show res
-    # @show rclass[]
-    # @show rmethodNameLen[]
-    # println("methodName: ", transcode(String, methodName[begin:rmethodNameLen[]-1]))
-    # @show rsigLen[]
     if res == S_OK
         return unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
     end
@@ -461,23 +450,6 @@ function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
     end
     return mdTokenNil
 end
-
-# function getTypeDefName(mdi::CMetaDataImport, td::mdTypeDef)::String
-#     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rnameLen = Ref(ULONG(0))
-#     rflags = Ref(DWORD(0))
-#     rextends = Ref(mdToken(0))
-#     res = @ccall $(mdi.vtbl.GetTypeDefProps)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         td::mdTypeDef,
-#         name::Ref{Cwchar_t},
-#         length(name)::ULONG,
-#         rnameLen::Ref{ULONG},
-#         rflags::Ref{DWORD},
-#         rextends::Ref{mdToken}
-#         )::HRESULT
-#     return res == S_OK ? transcode(String, name[begin:rnameLen[]-1]) : ""
-# end
 
 function getTypeDefProps(mdi::CMetaDataImport, td::mdTypeDef)
     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
@@ -624,16 +596,6 @@ function decodeArrayBlob(paramblob::Vector{COR_SIGNATURE})
     return (type, len, arraylen)
 end
 
-# const TypeInfo = Tuple{mdTypeDef, Int, Bool, Bool, Bool, Int}
-
-# struct TypeInfo
-#     type::mdTypeDef
-#     isPtr::Bool
-#     isValueType::Bool
-#     isArray::Bool
-#     arrayLen::Int
-# end
-
 const TYPEATTR_NONE         = 0x00000000
 const TYPEATTR_PTR          = 0x00000001
 const TYPEATTR_VALUETYPE    = 0x00000002
@@ -644,17 +606,12 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
     et::ELEMENT_TYPE = ELEMENT_TYPE(paramblob[1])
     type::mdToken = mdTokenNil
     typeattr::UInt32 = TYPEATTR_NONE
-    # isPtr::Bool = false
-    # isValueType::Bool = false
-    # isArray::Bool = false
     arraylen::Int = 0
     
     if et == ELEMENT_TYPE_PTR
-        # isPtr = true
         typeattr |= TYPEATTR_PTR
         subet = ELEMENT_TYPE(paramblob[2])
         if subet == ELEMENT_TYPE_VALUETYPE
-            # isValueType = true
             typeattr |= TYPEATTR_VALUETYPE
             type, len = uncompressToken(paramblob[3:end])
             len += 2
@@ -663,7 +620,6 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
             len += 1
         end
     elseif et == ELEMENT_TYPE_VALUETYPE
-        # isValueType = true
         typeattr |= TYPEATTR_VALUETYPE
         type, len = uncompressToken(paramblob[2:end])
         len += 1
@@ -671,7 +627,6 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
         type, len = uncompressToken(paramblob[2:end])
         len += 1
     elseif et == ELEMENT_TYPE_ARRAY
-        # isArray = true
         typeattr |= TYPEATTR_ARRAY
         type, len, arraylen = decodeArrayBlob(paramblob[2:end])
         len += 1
@@ -680,17 +635,13 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
         len = 1
     end
 
-    # return (type, len, isPtr, isValueType, isArray, arraylen)
     return (type, len, typeattr, arraylen)
 end
 
 function methodSigblobToTypeInfos(sigblob::Vector{COR_SIGNATURE})
     sk::SIG_KIND = SIG_KIND(sigblob[1] & 0xF)
-    # isPtr::Bool = false
-    # isValueType::Bool = false
     typeattr = TYPEATTR_NONE
     paramCount::Int = 0
-    # types = Tuple{mdTypeDef, Bool, Bool, Bool, Int}[]
     types = Tuple{mdTypeDef, UInt32, Int}[]
     i = 2
 
@@ -698,16 +649,13 @@ function methodSigblobToTypeInfos(sigblob::Vector{COR_SIGNATURE})
     paramCount, len = uncompress(sigblob[i:end])
     i += len
 
-    # rettype, len, isPtr, isValueType, isArray, arrayLen = paramType(sigblob[i:end])
     rettype, len, typeattr, arrayLen = paramType(sigblob[i:end])
     push!(types, (rettype, typeattr, arrayLen))
     i += len
 
     # TODO loop over param count
     while paramCount > 0 
-        # type, len, isPtr, isValueType, isArray, arrayLen = paramType(sigblob[i:end])
         type, len, typeattr, arrayLen = paramType(sigblob[i:end])
-        # push!(types, (type, isPtr, isValueType, isArray, arrayLen))
         push!(types, (type, typeattr, arrayLen))
         i += len
         paramCount -= 1
@@ -716,29 +664,12 @@ function methodSigblobToTypeInfos(sigblob::Vector{COR_SIGNATURE})
     return types
 end
 
-# function methodSigblobtoTypeInfo(sigblob::Vector{COR_SIGNATURE})
-#     if SIG_KIND(sigblob[1]) == SIG_KIND_FIELD
-#         return paramType(sigblob[2:end])
-#     end
-#     throw("bad signature")
-# end
-
 function fieldSigblobToTypeInfo(sigblob::Vector{COR_SIGNATURE})
     if SIG_KIND(sigblob[1]) == SIG_KIND_FIELD
         return paramType(sigblob[2:end])
     end
     throw("bad signature")
 end
-
-# function methodDefSig(sigblob::Vector{COR_SIGNATURE})
-#     # The first byte of the Signature holds bits for HASTHIS, EXPLICITTHIS and calling convention (DEFAULT, VARARG, or GENERIC)
-#     i = 1
-#     paramCount, len =  uncompress(sigblob[i])
-#     i += len
-#     retTyep, len = uncompress(sigblob[i])
-
-#     # TBD params
-# end
 
 function enumMembers(mdi::CMetaDataImport, tok::mdTypeDef)::Vector{mdToken}
     rEnum = Ref(HCORENUM(0))
