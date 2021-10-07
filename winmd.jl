@@ -159,11 +159,13 @@ function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken,
     return jtypes
 end 
 
-function createCCall(mod::String, funcname::String, rettype::Type, params::Vector{Tuple{String, Type}})::Function
+function createCCall(mod::String, funcname::String, rettype::Type, params::Vector{Tuple{String, Type}}) # ::Function
     funcparamexp = [:($(Symbol(p[1]))::$(p[2])) for p in params]
     funcparamvals = [:($(Symbol(p[1]))) for p in params]
     # funcparamtypes = [:($(p[2])) for p in params]
-    funcparamtypes = Tuple([p[2] for p in params])
+    # funcparamtypes = Tuple([p[2] for p in params])
+    # funcparamtypes = Tuple([(p[2]) for p in params])
+    funcparamtypes = Expr(:tuple, [(p[2]) for p in params]...)
 
     @show funcparamexp
     @show funcparamtypes
@@ -174,14 +176,48 @@ function createCCall(mod::String, funcname::String, rettype::Type, params::Vecto
     #         ccall($(Symbol(funcname), mod), rettype, $(funcparamtypes...), funcparamvals...)
     #     end
     # end
-    callexp = quote
-        function $(Symbol(funcname))($(funcparamexp...))
-            # ccall($(Symbol(funcname), mod), $rettype, $funcparamtypes, $(funcparamvals...))
-            ccall($(Symbol(funcname), mod), $rettype, (UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}}), $(funcparamvals...))
-        end
+    # callexp = quote
+    #     function $(Symbol(funcname))($(funcparamexp...))
+    #         # ccall($(Symbol(funcname), mod), $rettype, $funcparamtypes, $(funcparamvals...))
+    #         ccall($(Symbol(funcname), mod), $rettype, (UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}}), $(funcparamvals...))
+    #     end
+    # end
+
+    # works
+    # callexp = quote 
+    #     ccall($(Symbol(funcname), mod), $rettype, (UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}}), UInt32(0), Ptr{UInt16}(0), Ref(Ptr{Nothing}(0)))
+    # end
+
+    # works
+    # funcparamtypes = :((UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}}))
+    # dump(funcparamtypes)
+    # println()
+
+    # works
+    # t1 = (UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}})
+    # funcparamtypes = Expr(:tuple, t1...)
+    # dump(funcparamtypes)
+    # println()
+
+    # t1 = (UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}})
+    # dump(t1)
+    # funcparamtypes = quote $t1 end
+    # dump(funcparamtypes)
+    # println()
+
+    callexp = quote 
+        ccall($(Symbol(funcname), mod), $rettype, $funcparamtypes, UInt32(0), Ptr{UInt16}(0), Ref(Ptr{Nothing}(0)))
     end
     dump(callexp)
     eval(callexp)
+
+
+    # callexp = quote 
+    #     ccall($(Symbol(funcname), mod), $rettype, $funcparamtypes, UInt32(0), Ptr{UInt16}(0), Ref(Ptr{Nothing}(0)))
+    # end
+
+    # dump(callexp)
+    # eval(callexp)
 
     # callexp2 = quote
     #     ccall((:GetModuleHandleExW, "KERNEL32"), Bool, (UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}}), :dwFlags, :lpModuleName, :phModule)
