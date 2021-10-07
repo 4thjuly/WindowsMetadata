@@ -42,3 +42,6 @@ const wm = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WM_(?!._)
 # @show rmod[]
 
 convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
+rmod = Ref(Ptr{Cvoid}(C_NULL))
+@show GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
+@show rmod[]
