@@ -22,7 +22,8 @@ ps = Gdi_PAINTSTRUCT(
     SystemServices_BOOL(FALSE),
     tuple(zeros(UInt8, 32)...)
 )
-dump(ps)
+@show ps
+# dump(ps)
 println()
 
 const ws = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WS_(?!._))", "WS")

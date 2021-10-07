@@ -16,7 +16,7 @@ function Winmd(prefix::String)
     return Winmd(metadataDispenser() |> metadataImport, prefix, Typemap())
 end
 
-function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
+function convertTypeToJulia(type::ELEMENT_TYPE)::Type
     if type == ELEMENT_TYPE_I
         return Ptr{Cvoid}
     elseif type == ELEMENT_TYPE_I1
@@ -40,7 +40,7 @@ function convertTypeToJulia(type::ELEMENT_TYPE)::DataType
     return nothing
 end
 
-function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::DataType
+function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::Type
     mdi = winmd.mdi
     if mdt & UInt32(TOKEN_TYPE_MASK) == 0x00000000
         if ELEMENT_TYPE(mdt) == ELEMENT_TYPE_ARRAY
@@ -61,7 +61,7 @@ function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::DataType
     return Nothing
 end
 
-function convertTypeToJulia(winmd::Winmd, type::mdToken, typeattr::UInt32, arraylen::Int)::DataType
+function convertTypeToJulia(winmd::Winmd, type::mdToken, typeattr::UInt32, arraylen::Int)::Type
     mdi = winmd.mdi
     if typeattr & TYPEATTR_PTR == TYPEATTR_PTR
         ptrtype = convertTypeToJulia(winmd, type)
@@ -80,7 +80,7 @@ convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd, findT
 convertTypeNameToJulia(name::String) = replace(name, '.' => '_')
 convertTypeNameToJulia(name::String, prefix::String) = replace(name, "$(prefix)." => "") |> convertTypeNameToJulia
 
-function createStructType(structname::String, fields::Vector{Tuple{String, DataType}})
+function createStructType(structname::String, fields::Vector{Tuple{String, Type}})
     fexps = [:($(Symbol(x[1]))::$(x[2])) for x in fields]
     sexp = quote 
         struct $(Symbol(structname))
@@ -97,7 +97,7 @@ function createStructType(winmd::Winmd, wstructname::String)
 
     mdi = winmd.mdi
     winfields = enumFields(mdi, wstructname)
-    jfields = Vector{Tuple{String, DataType}}(undef, 0)
+    jfields = Vector{Tuple{String, Type}}(undef, 0)
     for winfield in winfields 
         name, sigblob = getFieldProps(mdi, winfield)
         jfield = convertTypeToJulia(winmd, sigblob)
@@ -119,7 +119,7 @@ end
 function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Regex, jclassname::String)
     mdi = winmd.mdi
     fields = enumFields(mdi, "$(winmd.prefix).$classname")
-    jfields = Tuple{String, DataType}[]
+    jfields = Tuple{String, Type}[]
     jinitvals = Any[]
     for field in fields
         name, sigblob, pval = getFieldProps(mdi, field)
@@ -151,13 +151,43 @@ function paramNamesAndAttrs(mdi::CMetaDataImport, params::Vector{mdParamDef})
 end
 
 function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, UInt32, Int}})
-    jtypes = DataType[]
+    jtypes = Type[]
     for typeinfo in typeinfos
         jtype = convertTypeToJulia(winmd, typeinfo[1], typeinfo[2], typeinfo[3])
         push!(jtypes, jtype)
     end
     return jtypes
 end 
+
+function createCCall(mod::String, funcname::String, rettype::Type, params::Vector{Tuple{String, Type}})::Function
+    funcparamexp = [:($(Symbol(p[1]))::$(p[2])) for p in params]
+    funcparamvals = [:($(Symbol(p[1]))) for p in params]
+    # funcparamtypes = [:($(p[2])) for p in params]
+    funcparamtypes = Tuple([p[2] for p in params])
+
+    @show funcparamexp
+    @show funcparamtypes
+    @show funcparamvals
+
+    # callexp = quote
+    #     function $(Symbol(funcname))($(funcparamexp...))
+    #         ccall($(Symbol(funcname), mod), rettype, $(funcparamtypes...), funcparamvals...)
+    #     end
+    # end
+    callexp = quote
+        function $(Symbol(funcname))($(funcparamexp...))
+            # ccall($(Symbol(funcname), mod), $rettype, $funcparamtypes, $(funcparamvals...))
+            ccall($(Symbol(funcname), mod), $rettype, (UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}}), $(funcparamvals...))
+        end
+    end
+    dump(callexp)
+    eval(callexp)
+
+    # callexp2 = quote
+    #     ccall((:GetModuleHandleExW, "KERNEL32"), Bool, (UInt32, Ptr{UInt16}, Ref{Ptr{Nothing}}), :dwFlags, :lpModuleName, :phModule)
+    # end
+    # dump(callexp2)
+end
 
 function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::String)
     mdi = winmd.mdi
@@ -171,8 +201,21 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
     jtypes = convertParamTypesToJulia(winmd, typeinfos)
     @show methodname modulename importname namesAndAttrs typeinfos jtypes
 
-    # Generate stub function
+    # Convert params
+    funcparams = Tuple{String, Type}[]
+    for i = 2:length(jtypes)
+        jtype = jtypes[i]
+        # Convert [Out] Ptr{Ptr{x}} to Ref{Ptr{x}} 
+        if namesAndAttrs[i][2] & CorParamAttr_pdOut == CorParamAttr_pdOut
+            jtype = supertype(jtype)
+        end
+        push!(funcparams, (namesAndAttrs[i][1], jtype))
+    end
+    @show funcparams
 
+    # Generate stub function
+    f = createCCall(modulename, methodname, jtypes[1], funcparams)
+    @show f
 end
 
 convertFunctionToJulia(winmd::Winmd, classname::String, methodname::String) = convertFunctionToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$classname"), methodname)
