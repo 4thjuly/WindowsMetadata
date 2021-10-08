@@ -31,38 +31,95 @@ convertFunctionToJulia(winmd, "Gdi.Apis", "DeleteObject")
 convertFunctionToJulia(winmd, "Gdi.Apis", "EndPaint")
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DefWindowProcW")
 
+
+const Gdi32 = "Gdi32" 
+const User32 = "User32" 
+
+const PVOID = Ptr{Cvoid}
+const HANDLE = PVOID
+const HDC = HANDLE
+const HWND = HANDLE
+const BOOL = Cint
+const COLORREF = DWORD
+const BYTE = Cuchar
+const LONG = Clong
+const HGDIOBJ = HANDLE
+const HBRUSH = HANDLE
+
+struct tagRECT
+    left::LONG
+    top::LONG
+    right::LONG
+    bottom::LONG
+end
+const RECT = tagRECT
+
+struct tagPAINTSTRUCT
+    hdc::HDC
+    fErase::BOOL
+    rcPaint::RECT
+    fRestore::BOOL
+    fIncUpdate::BOOL
+    rgbReserved::NTuple{32, BYTE}
+end
+const PAINTSTRUCT = tagPAINTSTRUCT
+const LPPAINTSTRUCT = Ptr{tagPAINTSTRUCT}
+
+_BeginPaint(hWnd::HWND, lpPaint::LPPAINTSTRUCT) = ccall((:BeginPaint, User32), HDC, (HWND, LPPAINTSTRUCT), hWnd, lpPaint)
+_EndPaint(hWnd::HWND, lpPaint) =  ccall((:EndPaint, User32), BOOL, (HWND, Ptr{PAINTSTRUCT}), hWnd, lpPaint)
+_RGB(r::BYTE, g::BYTE, b::BYTE)::COLORREF = (UInt32(r) << 16 | UInt32(g) << 8 | UInt32(b))
+_DeleteObject(ho::HGDIOBJ) = ccall((:DeleteObject, Gdi32), BOOL, (HGDIOBJ,), ho)
+_CreateSolidBrush(color::COLORREF) = ccall((:CreateSolidBrush, Gdi32), HBRUSH, (COLORREF,), color)
+_FillRect(hDC::HDC, lprc, hbr::HBRUSH) = ccall((:FillRect, User32), Cint, (HDC, Ptr{RECT}, HBRUSH), hDC, lprc, hbr)
+
 function myWndProc(
     hwnd::WindowsAndMessaging_HWND, 
     uMsg::UInt32, 
     wParam::WindowsAndMessaging_WPARAM, 
     lParam::WindowsAndMessaging_LPARAM)::SystemServices_LRESULT
 
-    ps = Gdi_PAINTSTRUCT(
-        Gdi_HDC(C_NULL),
-        SystemServices_BOOL(FALSE),
-        DisplayDevices_RECT(0,0,0,0),
-        SystemServices_BOOL(FALSE),
-        SystemServices_BOOL(FALSE),
-        tuple(zeros(UInt8, 32)...)
-    )
-
-    println("Msg: $uMsg")
+    # println("Msg: $uMsg")
     if uMsg == WMS.WM_CREATE
         println("WM_CREATE")
     elseif uMsg == WMS.WM_DESTROY
         PostQuitMessage(Int32(0))
         return SystemServices_LRESULT(0)
     elseif uMsg == WMS.WM_PAINT
-        rps = Ref(ps)
-        hdc = BeginPaint(hwnd, rps)
-        println("paint $(rps[].rcPaint)")
-        hbr = CreateSolidBrush(RGB(rand(UInt8), rand(UInt8), rand(UInt8)))
-        rcp = rps[].rcPaint
-        rect = DisplayDevices_RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
-        FillRect(hdc, unsafe_convert(Ptr{DisplayDevices_RECT}, Ref(rect)), hbr)
-        DeleteObject(Ptr{Cvoid}(hbr.Value))
-        # pps = Ptr{Gdi_PAINTSTRUCT}(rps[])
-        EndPaint(hwnd, unsafe_convert(Ptr{Gdi_PAINTSTRUCT}, rps))
+
+
+        ps = PAINTSTRUCT( 0, false, RECT(0, 0, 0, 0), false, false, (zeros(BYTE,32)...,) )
+        rps = Ref(ps) # BeginPaint will modify the ref, not the immutable original
+        hdc = _BeginPaint(hwnd.Value, unsafe_convert(LPPAINTSTRUCT, rps))
+        # @info "Paint $(rps[].rcPaint)"
+        hbr = _CreateSolidBrush(_RGB(rand(BYTE), rand(BYTE), rand(BYTE)))
+        _FillRect(hdc, Ref(rps[].rcPaint), hbr)
+        _DeleteObject(hbr)
+        _EndPaint(hwnd.Value, rps)
+
+
+
+        # ps = Gdi_PAINTSTRUCT(
+        #     Gdi_HDC(C_NULL),
+        #     SystemServices_BOOL(FALSE),
+        #     DisplayDevices_RECT(0,0,0,0),
+        #     SystemServices_BOOL(FALSE),
+        #     SystemServices_BOOL(FALSE),
+        #     tuple(zeros(UInt8, 32)...)
+        # )
+        # rps = Ref(ps)
+        # hdc = BeginPaint(hwnd, unsafe_convert(Ptr{Gdi_PAINTSTRUCT}, rps))
+        # @show rps[]
+        # println("paint $(rps[].rcPaint)")
+        # # hbr = CreateSolidBrush(RGB(rand(UInt8), rand(UInt8), rand(UInt8)))
+        # rcp = rps[].rcPaint
+        # rect = DisplayDevices_RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
+        # # rect = DisplayDevices_RECT(Int32(0), Int32(0), Int32(640), Int32(480))
+        # # @show rect
+        # # @show FillRect(hdc, unsafe_convert(Ptr{DisplayDevices_RECT}, Ref(rect)), hbr)
+        # FillRect(hdc, unsafe_convert(Ptr{DisplayDevices_RECT}, Ref(rect)), Gdi_HBRUSH(COLORS.COLOR_ACTIVECAPTION + 1))
+        # # DeleteObject(Ptr{Cvoid}(hbr.Value))
+        # # pps = Ptr{Gdi_PAINTSTRUCT}(rps[])
+        # EndPaint(hwnd, unsafe_convert(Ptr{Gdi_PAINTSTRUCT}, rps))
         return SystemServices_LRESULT(0)
     end
 
@@ -95,7 +152,8 @@ wc = WindowsAndMessaging_WNDCLASSEXW(
     hinst,
     hicon,
     hcursor,
-    Gdi_HBRUSH(COLORS.COLOR_WINDOW + 1),
+    # Gdi_HBRUSH(COLORS.COLOR_ACTIVECAPTION + 1),
+    Gdi_HBRUSH(0),
     Ptr{UInt16}(0),
     unsafe_convert(Ptr{UInt16}, classname),
     Gdi_HICON(0)
