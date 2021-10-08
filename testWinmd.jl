@@ -30,7 +30,7 @@ convertFunctionToJulia(winmd, "Gdi.Apis", "CreateSolidBrush")
 convertFunctionToJulia(winmd, "Gdi.Apis", "FillRect")
 convertFunctionToJulia(winmd, "Gdi.Apis", "DeleteObject")
 convertFunctionToJulia(winmd, "Gdi.Apis", "EndPaint")
-convertFunctionToJulia(winmd, "WindowsAndMessaging", "DefWindowProc")
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DefWindowProcW")
 
 function myWndProc(
     hwnd::WindowsAndMessaging_HWND, 
@@ -72,6 +72,10 @@ convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
 rmod = Ref(Ptr{Cvoid}(C_NULL))
 GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
 hinst = rmod[]
+@show hinst
+
+# HERE
+
 convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadIcon")
 hicon = LoadIcon(hinst, idi.IDI_INFORMATION)
 convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadCursor")

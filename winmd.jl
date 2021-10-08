@@ -192,33 +192,21 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
     jtypes = convertParamTypesToJulia(winmd, typeinfos)
     @show methodname modulename importname namesAndAttrs typeinfos jtypes
 
-    # Convert params
-    # NB void function has no return param so will be shorter than typeinfos
-    # NB Happens at other times too
+    # Convert params and pair. 
+    # NB namesAndAttrs doesn't always have a return type first so fix that here
     funcparams = Tuple{String, Type}[]
-    i = 1 + (length(jtypes) - length(namesAndAttrs))
-
-    for (name, attr) in namesAndAttrs
+    if namesAndAttrs[1][1] != ""
+        insert!(namesAndAttrs, 1, ("", UInt32(0)))
+    end
+    for i = 2:length(namesAndAttrs)
+        (name, attr) = namesAndAttrs[i]
         jtype = jtypes[i]
         if attr & CorParamAttr_pdOut == CorParamAttr_pdOut
             push!(funcparams, (name, supertype(jtype)))
         else
             push!(funcparams, (name, jtype))
         end
-        i += 1
     end
-
-
-    # for jtype in jtypes
-    #     # if jtype === Nothing continue end
-    #     name, attr = namesAndAttrs[i]
-    #     if attr & CorParamAttr_pdOut == CorParamAttr_pdOut
-    #         push!(funcparams, (name, supertype(jtype)))
-    #     else
-    #         push!(funcparams, (name, jtype))
-    #     end
-    #     i += 1
-    # end
 
     @show funcparams
 
