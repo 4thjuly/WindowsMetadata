@@ -34,7 +34,13 @@ function convertTypeToJulia(type::ELEMENT_TYPE)::Type
     elseif type == ELEMENT_TYPE_R4
         return Float32
     elseif type == ELEMENT_TYPE_R8
-            return Float64
+        return Float64
+    elseif type == ELEMENT_TYPE_I
+        return Int
+    elseif type == ELEMENT_TYPE_U
+        return UInt
+    elseif type == ELEMENT_TYPE_VOID
+        return Nothing
     end
     error("NYI: $type")
     return nothing
@@ -164,23 +170,13 @@ function createCCall(mod::String, funcname::String, rettype::Type, params::Vecto
     funcparamvals = [:($(Symbol(p[1]))) for p in params]
     funcparamtypes = Expr(:tuple, [(p[2]) for p in params]...)
 
-    # @show funcparamexp
-    # @show funcparamtypes
-    # @show funcparamvals
-
-    # callexp = quote 
-    #     ccall($(Symbol(funcname), mod), $rettype, $funcparamtypes, UInt32(0), Ptr{UInt16}(0), Ref(Ptr{Nothing}(0)))
-    # end
-    # dump(callexp)
-    # eval(callexp)
-
     callexp = quote
         function $(Symbol(funcname))($(funcparamexp...))
             ccall($(Symbol(funcname), mod), $rettype, $funcparamtypes, $(funcparamvals...))
         end
     end
-    # dump(callexp)
-    eval(callexp)
+
+    return eval(callexp)
 end
 
 function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::String)
@@ -191,25 +187,39 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
     sigblob = getMethodProps(mdi, mdgmh)
     typeinfos = methodSigblobToTypeInfos(sigblob)
     params = enumParams(mdi, mdgmh)
+    @show params
     namesAndAttrs = paramNamesAndAttrs(mdi, params)
     jtypes = convertParamTypesToJulia(winmd, typeinfos)
     @show methodname modulename importname namesAndAttrs typeinfos jtypes
 
     # Convert params
+    # NB void function has no return param so will be shorter than typeinfos
     funcparams = Tuple{String, Type}[]
-    for i = 2:length(jtypes)
-        jtype = jtypes[i]
-        # Convert [Out] Ptr{Ptr{x}} to Ref{Ptr{x}} 
-        if namesAndAttrs[i][2] & CorParamAttr_pdOut == CorParamAttr_pdOut
-            jtype = supertype(jtype)
+    i = 1
+    for jtype in jtypes
+        if jtype === Nothing continue end
+        name, attr = namesAndAttrs[i]
+        if attr & CorParamAttr_pdOut == CorParamAttr_pdOut
+            push!(funcparams, (name, supertype(jtype)))
+        else
+            push!(funcparams, (name, jtype))
         end
-        push!(funcparams, (namesAndAttrs[i][1], jtype))
+        i += 1
     end
+
+    # for i = 2:length(jtypes)
+    #     jtype = jtypes[i]
+    #     # Convert [Out] Ptr{Ptr{x}} to Ref{Ptr{x}} 
+    #     if namesAndAttrs[i][2] & CorParamAttr_pdOut == CorParamAttr_pdOut
+    #         jtype = supertype(jtype)
+    #     end
+    #     push!(funcparams, (namesAndAttrs[i][1], jtype))
+    # end
     @show funcparams
 
     # Generate stub function
-    f = createCCall(modulename, methodname, jtypes[1], funcparams)
-    @show f
+    return createCCall(modulename, methodname, jtypes[1], funcparams)
+    # @show f
 end
 
 convertFunctionToJulia(winmd::Winmd, classname::String, methodname::String) = convertFunctionToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$classname"), methodname)

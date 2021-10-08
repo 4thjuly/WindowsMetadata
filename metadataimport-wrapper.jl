@@ -585,7 +585,8 @@ end
     ELEMENT_TYPE_ARRAY = 0x14 # type rank boundsCount bound1 … loCount lo1 …
     ELEMENT_TYPE_GENERICINST = 0x15 # Generic type instantiation. Followed by type type-arg-count type-1 ... type-n
     ELEMENT_TYPE_TYPEDBYREF = 0x16
-    ELEMENT_TYPE_I = 0x18 # System.IntPtr
+    ELEMENT_TYPE_I = 0x18 # Size of a native integer, System.IntPtr
+    ELEMENT_TYPE_U = 0x19 # Size of an unsigned native integer. System.UIntPtr
     # TBD
 end
 
@@ -729,6 +730,7 @@ function enumParams(mdi::CMetaDataImport, mdtoken::mdMethodDef)::Vector{mdParamD
     params = zeros(mdParamDef, DEFAULT_BUFFER_LEN)
     rcparams = Ref(ULONG(0))
     res = enumParams(mdi, rEnum, mdtoken, params, rcparams)
+    # @show rcparams[]
     while res == S_OK
         append!(allparams, params[1:rcparams[]])
         res = enumParams(mdi, rEnum, mdtoken, params, rcparams)
