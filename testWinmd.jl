@@ -71,52 +71,53 @@ end
 convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
 rmod = Ref(Ptr{Cvoid}(C_NULL))
 GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
-hinst = rmod[]
-@show hinst
+hinst = SystemServices_HINSTANCE(rmod[])
+@show hinst; println()
 
-# HERE
+const HINST_NULL = SystemServices_HINSTANCE(Ptr{Cvoid}(C_NULL))
+convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadIconW")
+hicon = LoadIconW(HINST_NULL, Ptr{UInt16}(UInt(idi.IDI_INFORMATION)))
+@show hicon; println()
+convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadCursorW")
+hcursor = LoadCursorW(HINST_NULL, Ptr{UInt16}(UInt(idc.IDC_ARROW)))
+@show hcursor; println()
 
-convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadIcon")
-hicon = LoadIcon(hinst, idi.IDI_INFORMATION)
-convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadCursor")
-hcursor = LoadCursor(hinst, idc.IDC_ARROW)
+# wc = WindowsAndMessaging.WNDCLASSEXW(
+#     length(WindowsAndMessaging.WNDCLASSEXW),
+#     cs.CS_HREDRAW | cs.CS_VREDRAW,
+#     @wndproc(myWndProc),
+#     Int32(0),
+#     Int32(0),
+#     hinst,
+#     hicon,
+#     hcursor,
+#     Gdi_HBRUSH(0),
+#     Cwchar_t[]
+# )
 
-wc = WindowsAndMessaging.WNDCLASSEXW(
-    length(WindowsAndMessaging.WNDCLASSEXW),
-    cs.CS_HREDRAW | cs.CS_VREDRAW,
-    @wndproc(myWndProc),
-    Int32(0),
-    Int32(0),
-    hinst,
-    hicon,
-    hcursor,
-    Gdi_HBRUSH(0),
-    Cwchar_t[]
-)
+# convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassEx")
+# RegisterClassEx(wc)
 
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassEx")
-RegisterClassEx(wc)
+# className = L"Julia Window Class"
 
-className = L"Julia Window Class"
+# hwnd = CreateWindowExW(
+#     UInt32(0), 
+#     className, 
+#     L"Window Title", 
+#     ws.WS_OVERLAPPEDWINDOW, 
+#     cw.CW_USEDEFAULT, 
+#     cw.CW_USEDEFAULT, 
+#     512, 
+#     512, 
+#     0, 
+#     MenusAndResources_HMENU(0), 
+#     hinst, 
+#     0)
 
-hwnd = CreateWindowExW(
-    UInt32(0), 
-    className, 
-    L"Window Title", 
-    ws.WS_OVERLAPPEDWINDOW, 
-    cw.CW_USEDEFAULT, 
-    cw.CW_USEDEFAULT, 
-    512, 
-    512, 
-    0, 
-    MenusAndResources_HMENU(0), 
-    hinst, 
-    0)
+# convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "ShowWindow")
+# ShowWindow(hwnd, sw.SW_SHOWNORMAL)
 
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "ShowWindow")
-ShowWindow(hwnd, sw.SW_SHOWNORMAL)
+# msg = WindowsAndMessaging_MSG(
 
-msg = WindowsAndMessaging_MSG(
-
-)
+# )
 
