@@ -15,7 +15,7 @@ convertTypeToJulia(winmd, "WindowsAndMessaging.MSG")
 
 const WSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WS_(?!._))", "WS")
 const CSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CS_(?!._))", "CS")
-const cCWSw = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CW_(?!._))", "CW")
+const CWS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CW_(?!._))", "CW")
 const IDIS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDI_(?!._))", "IDI")
 const IDCS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDC_(?!._))", "IDC")
 const WMS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WM_(?!._))", "WM")
@@ -46,7 +46,7 @@ function myWndProc(
         tuple(zeros(UInt8, 32)...)
     )
 
-    # println("Msg: $uMsg")
+    println("Msg: $uMsg")
     if uMsg == WMS.WM_CREATE
         println("WM_CREATE")
     elseif uMsg == WMS.WM_DESTROY
@@ -55,7 +55,7 @@ function myWndProc(
     elseif uMsg == WMS.WM_PAINT
         rps = Ref(ps)
         hdc = BeginPaint(hwnd, rps)
-        # println("paint $(paint.rect)")
+        println("paint $(paint.rect)")
         hbr = CreateSolidBrush(RGB(rand(UInt8), rand(UInt8), rand(UInt8)))
         FillRect(hdc, rps[].rect, hbr)
         DeleteObject(hbr)
@@ -64,7 +64,7 @@ function myWndProc(
         return 0
     end
 
-    return DefWindowProc(hwnd, uMsg, wParam, lParam)
+    return DefWindowProcW(hwnd, uMsg, wParam, lParam)
 end
 
 convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
@@ -90,7 +90,7 @@ wc = WindowsAndMessaging_WNDCLASSEXW(
     @wndproc(myWndProc),
     Int32(0),
     Int32(0),
-    HINST_NULL,
+    hinst,
     hicon,
     hcursor,
     Gdi_HBRUSH(COLORS.COLOR_WINDOW + 1),
@@ -104,22 +104,25 @@ convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassExW")
 # TODO Support Ref(struct) -> ptr conversion in the wrapper
 @show RegisterClassExW(unsafe_convert(Ptr{WindowsAndMessaging_WNDCLASSEXW}, Ref(wc)))
 
-# hwnd = CreateWindowExW(
-#     UInt32(0), 
-#     className, 
-#     L"Window Title", 
-#     ws.WS_OVERLAPPEDWINDOW, 
-#     cw.CW_USEDEFAULT, 
-#     cw.CW_USEDEFAULT, 
-#     512, 
-#     512, 
-#     0, 
-#     MenusAndResources_HMENU(0), 
-#     hinst, 
-#     0)
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "CreateWindowExW")
+const SWS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(SW_(?!._))", "SW")
+windowtitle = L"Window Title"
+@show hwnd = CreateWindowExW(
+    UInt32(0), 
+    unsafe_convert(Ptr{UInt16}, classname), 
+    unsafe_convert(Ptr{UInt16}, windowtitle), 
+    WSS.WS_OVERLAPPEDWINDOW, 
+    CWS.CW_USEDEFAULT, 
+    CWS.CW_USEDEFAULT, 
+    Int32(640), 
+    Int32(480), 
+    WindowsAndMessaging_HWND(0), 
+    MenusAndResources_HMENU(0), 
+    hinst, 
+    Ptr{Cvoid}(C_NULL))
 
-# convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "ShowWindow")
-# ShowWindow(hwnd, sw.SW_SHOWNORMAL)
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "ShowWindow")
+ShowWindow(hwnd, SWS.SW_SHOWNORMAL)
 
 # msg = WindowsAndMessaging_MSG(
 
