@@ -51,17 +51,19 @@ function myWndProc(
         println("WM_CREATE")
     elseif uMsg == WMS.WM_DESTROY
         PostQuitMessage(Int32(0))
-        return 0
+        return SystemServices_LRESULT(0)
     elseif uMsg == WMS.WM_PAINT
         rps = Ref(ps)
         hdc = BeginPaint(hwnd, rps)
-        println("paint $(paint.rect)")
+        println("paint $(rps[].rcPaint)")
         hbr = CreateSolidBrush(RGB(rand(UInt8), rand(UInt8), rand(UInt8)))
-        FillRect(hdc, rps[].rect, hbr)
-        DeleteObject(hbr)
-        pps = Ptr{Gdi_PAINTSTRUCT}(rps[])
-        EndPaint(hwnd, pps)
-        return 0
+        rcp = rps[].rcPaint
+        rect = DisplayDevices_RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
+        FillRect(hdc, unsafe_convert(Ptr{DisplayDevices_RECT}, Ref(rect)), hbr)
+        DeleteObject(Ptr{Cvoid}(hbr.Value))
+        # pps = Ptr{Gdi_PAINTSTRUCT}(rps[])
+        EndPaint(hwnd, unsafe_convert(Ptr{Gdi_PAINTSTRUCT}, rps))
+        return SystemServices_LRESULT(0)
     end
 
     return DefWindowProcW(hwnd, uMsg, wParam, lParam)
@@ -124,7 +126,21 @@ windowtitle = L"Window Title"
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "ShowWindow")
 ShowWindow(hwnd, SWS.SW_SHOWNORMAL)
 
-# msg = WindowsAndMessaging_MSG(
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "GetMessageW")
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "TranslateMessage")
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DispatchMessageW")
 
-# )
+msg = WindowsAndMessaging_MSG(
+    WindowsAndMessaging_HWND(0), 
+    UInt32(0), 
+    WindowsAndMessaging_WPARAM(0), 
+    WindowsAndMessaging_LPARAM(0), 
+    UInt32(0), 
+    DisplayDevices_POINT(Int32(0), Int32(0)))
+pmsg = unsafe_convert(Ptr{WindowsAndMessaging_MSG}, Ref(msg));
+while GetMessageW(pmsg, WindowsAndMessaging_HWND(0), UInt32(0), UInt32(0)).Value != 0
+    TranslateMessage(pmsg)
+    DispatchMessageW(pmsg)
+end
 
+println("Done")
