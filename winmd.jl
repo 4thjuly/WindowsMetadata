@@ -194,11 +194,12 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
 
     # Convert params
     # NB void function has no return param so will be shorter than typeinfos
+    # NB Happens at other times too
     funcparams = Tuple{String, Type}[]
-    i = 1
-    for jtype in jtypes
-        if jtype === Nothing continue end
-        name, attr = namesAndAttrs[i]
+    i = 1 + (length(jtypes) - length(namesAndAttrs))
+
+    for (name, attr) in namesAndAttrs
+        jtype = jtypes[i]
         if attr & CorParamAttr_pdOut == CorParamAttr_pdOut
             push!(funcparams, (name, supertype(jtype)))
         else
@@ -207,19 +208,22 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
         i += 1
     end
 
-    # for i = 2:length(jtypes)
-    #     jtype = jtypes[i]
-    #     # Convert [Out] Ptr{Ptr{x}} to Ref{Ptr{x}} 
-    #     if namesAndAttrs[i][2] & CorParamAttr_pdOut == CorParamAttr_pdOut
-    #         jtype = supertype(jtype)
+
+    # for jtype in jtypes
+    #     # if jtype === Nothing continue end
+    #     name, attr = namesAndAttrs[i]
+    #     if attr & CorParamAttr_pdOut == CorParamAttr_pdOut
+    #         push!(funcparams, (name, supertype(jtype)))
+    #     else
+    #         push!(funcparams, (name, jtype))
     #     end
-    #     push!(funcparams, (namesAndAttrs[i][1], jtype))
+    #     i += 1
     # end
+
     @show funcparams
 
     # Generate stub function
     return createCCall(modulename, methodname, jtypes[1], funcparams)
-    # @show f
 end
 
 convertFunctionToJulia(winmd::Winmd, classname::String, methodname::String) = convertFunctionToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$classname"), methodname)
