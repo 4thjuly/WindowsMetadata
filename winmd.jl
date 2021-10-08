@@ -187,10 +187,10 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
     sigblob = getMethodProps(mdi, mdgmh)
     typeinfos = methodSigblobToTypeInfos(sigblob)
     params = enumParams(mdi, mdgmh)
-    @show params
+    # @show params
     namesAndAttrs = paramNamesAndAttrs(mdi, params)
     jtypes = convertParamTypesToJulia(winmd, typeinfos)
-    @show methodname modulename importname namesAndAttrs typeinfos jtypes
+    # @show methodname modulename importname namesAndAttrs typeinfos jtypes
 
     # Convert params and pair. 
     # NB namesAndAttrs doesn't always have a return type first so fix that here
@@ -208,7 +208,7 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
         end
     end
 
-    @show funcparams
+    # @show funcparams
 
     # Generate stub function
     return createCCall(modulename, methodname, jtypes[1], funcparams)

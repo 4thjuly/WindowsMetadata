@@ -1,4 +1,5 @@
 include("winmd.jl")
+import Base.unsafe_convert
 
 const FALSE = Int(false)
 const TRUE = Int(1)
@@ -12,17 +13,15 @@ convertTypeToJulia(winmd, "DisplayDevices.RECT")
 convertTypeToJulia(winmd, "WindowsAndMessaging.WNDCLASSEXW")
 convertTypeToJulia(winmd, "WindowsAndMessaging.MSG")
 
-const ws = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WS_(?!._))", "WS")
-const cs = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CS_(?!._))", "CS")
-const cw = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CW_(?!._))", "CW")
-const idi = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDI_(?!._))", "IDI")
-const idc = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDC_(?!._))", "IDC")
-const wm = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WM_(?!._))", "WM")
+const WSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WS_(?!._))", "WS")
+const CSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CS_(?!._))", "CS")
+const cCWSw = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CW_(?!._))", "CW")
+const IDIS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDI_(?!._))", "IDI")
+const IDCS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDC_(?!._))", "IDC")
+const WMS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WM_(?!._))", "WM")
+const COLORS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(COLOR_(?!._))", "COLOR")
 
-macro wndproc(wp) return :(@cfunction($wp, 
-    SystemServices.LRESULT, 
-    (WindowsAndMessaging.HWND, UInt32, WindowsAndMessaging.WPARAM, WindowsAndMessaging.LPARAM))) 
-end
+macro wndproc(wp) return :(@cfunction($wp, SystemServices_LRESULT, (WindowsAndMessaging_HWND, UInt32, WindowsAndMessaging_WPARAM, WindowsAndMessaging_LPARAM))) end
 
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "PostQuitMessage")
 convertFunctionToJulia(winmd, "Gdi.Apis", "BeginPaint")
@@ -48,12 +47,12 @@ function myWndProc(
     )
 
     # println("Msg: $uMsg")
-    if uMsg == wm.WM_CREATE
+    if uMsg == WMS.WM_CREATE
         println("WM_CREATE")
-    elseif uMsg == wm.WM_DESTROY
+    elseif uMsg == WMS.WM_DESTROY
         PostQuitMessage(Int32(0))
         return 0
-    elseif uMsg == wm.WM_PAINT
+    elseif uMsg == WMS.WM_PAINT
         rps = Ref(ps)
         hdc = BeginPaint(hwnd, rps)
         # println("paint $(paint.rect)")
@@ -74,31 +73,36 @@ GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
 hinst = SystemServices_HINSTANCE(rmod[])
 @show hinst; println()
 
-const HINST_NULL = SystemServices_HINSTANCE(Ptr{Cvoid}(C_NULL))
+const HINST_NULL = SystemServices_HINSTANCE(0)
 convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadIconW")
-hicon = LoadIconW(HINST_NULL, Ptr{UInt16}(UInt(idi.IDI_INFORMATION)))
+hicon = LoadIconW(HINST_NULL, Ptr{UInt16}(UInt(IDIS.IDI_INFORMATION)))
 @show hicon; println()
 convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadCursorW")
-hcursor = LoadCursorW(HINST_NULL, Ptr{UInt16}(UInt(idc.IDC_ARROW)))
+hcursor = LoadCursorW(HINST_NULL, Ptr{UInt16}(UInt(IDCS.IDC_ARROW)))
 @show hcursor; println()
 
-# wc = WindowsAndMessaging.WNDCLASSEXW(
-#     length(WindowsAndMessaging.WNDCLASSEXW),
-#     cs.CS_HREDRAW | cs.CS_VREDRAW,
-#     @wndproc(myWndProc),
-#     Int32(0),
-#     Int32(0),
-#     hinst,
-#     hicon,
-#     hcursor,
-#     Gdi_HBRUSH(0),
-#     Cwchar_t[]
-# )
+classname = L"Julia Window Class"
+# TODO Support string conversion in a constructor 
+# TODO Support zero-init'd structs
+wc = WindowsAndMessaging_WNDCLASSEXW(
+    sizeof(WindowsAndMessaging_WNDCLASSEXW),
+    CSS.CS_HREDRAW | CSS.CS_VREDRAW,
+    @wndproc(myWndProc),
+    Int32(0),
+    Int32(0),
+    HINST_NULL,
+    hicon,
+    hcursor,
+    Gdi_HBRUSH(COLORS.COLOR_WINDOW + 1),
+    Ptr{UInt16}(0),
+    unsafe_convert(Ptr{UInt16}, classname),
+    Gdi_HICON(0)
+)
+@show wc; println()
 
-# convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassEx")
-# RegisterClassEx(wc)
-
-# className = L"Julia Window Class"
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassExW")
+# TODO Support Ref(struct) -> ptr conversion in the wrapper
+@show RegisterClassExW(unsafe_convert(Ptr{WindowsAndMessaging_WNDCLASSEXW}, Ref(wc)))
 
 # hwnd = CreateWindowExW(
 #     UInt32(0), 
