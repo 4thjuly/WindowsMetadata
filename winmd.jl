@@ -159,7 +159,12 @@ end
 function convertParamTypesToJulia(winmd::Winmd, typeinfos::Vector{Tuple{mdToken, UInt32, Int}})
     jtypes = Type[]
     for typeinfo in typeinfos
-        jtype = convertTypeToJulia(winmd, typeinfo[1], typeinfo[2], typeinfo[3])
+        type, typeattr, arraylen = typeinfo
+        jtype = convertTypeToJulia(winmd, type, typeattr, arraylen)
+        # Covnvert ptr-to-thing param to ref-to-thing so ccall marshalling works properly  
+        if typeattr & TYPEATTR_PTR == TYPEATTR_PTR
+            jtype = supertype(jtype) # Ptr to Ref
+        end
         push!(jtypes, jtype)
     end
     return jtypes
@@ -180,6 +185,7 @@ function createCCall(mod::String, funcname::String, rettype::Type, params::Vecto
 end
 
 function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::String)
+    # @show methodname
     mdi = winmd.mdi
     mdgmh = findMethod(mdi, mdclass, methodname)
     mref, importname = getPInvokeMap(mdi, mdgmh)
@@ -202,10 +208,10 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
         (name, attr) = namesAndAttrs[i]
         jtype = jtypes[i]
         if attr & CorParamAttr_pdOut == CorParamAttr_pdOut
-            push!(funcparams, (name, supertype(jtype)))
-        else
-            push!(funcparams, (name, jtype))
+            jtype = supertype(jtype)
         end
+
+        push!(funcparams, (name, jtype))
     end
 
     # @show funcparams

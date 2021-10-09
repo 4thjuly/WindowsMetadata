@@ -146,20 +146,20 @@ function myWndProc(
         # New
         ps = Gdi_PAINTSTRUCT(Gdi_HDC(C_NULL), SystemServices_BOOL(FALSE), DisplayDevices_RECT(0,0,0,0), SystemServices_BOOL(FALSE), SystemServices_BOOL(FALSE), tuple(zeros(UInt8, 32)...))
         rps = Ref(ps)
-        hdc = BeginPaint(hwnd, unsafe_convert(Ptr{Gdi_PAINTSTRUCT}, rps))
+        hdc = BeginPaint(hwnd, rps)
         hbr = CreateSolidBrush(RGB(rand(UInt8), rand(UInt8), rand(UInt8)))
         rcp = rps[].rcPaint
         rect = DisplayDevices_RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
-        prect = unsafe_convert(Ptr{DisplayDevices_RECT}, cconvert(Ptr{DisplayDevices_RECT}, Ref(rect)))
+        # prect = unsafe_convert(Ptr{DisplayDevices_RECT}, cconvert(Ptr{DisplayDevices_RECT}, Ref(rect)))
         # @show hdc prect hbr
-        # FillRect(hdc, prect, hbr)
+        FillRect(hdc, Ref(rect), hbr)
         # FillRect4(hdc, rect, hbr)
         # FillRect2(hdc, Ref(rect), hbr)
-        FillRect21(hdc, Ref(rect), hbr)
+        # FillRect21(hdc, Ref(rect), hbr)
         # _rect = RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
         # _FillRect(hdc.Value, Ref(_rect), hbr.Value)
         DeleteObject(Ptr{Cvoid}(hbr.Value))
-        EndPaint(hwnd, unsafe_convert(Ptr{Gdi_PAINTSTRUCT}, rps))
+        EndPaint(hwnd, rps)
 
         return SystemServices_LRESULT(0)
     end
@@ -193,7 +193,6 @@ wc = WindowsAndMessaging_WNDCLASSEXW(
     hinst,
     hicon,
     hcursor,
-    # Gdi_HBRUSH(COLORS.COLOR_ACTIVECAPTION + 1),
     Gdi_HBRUSH(0),
     Ptr{UInt16}(0),
     unsafe_convert(Ptr{UInt16}, classname),
@@ -202,7 +201,6 @@ wc = WindowsAndMessaging_WNDCLASSEXW(
 @show wc; println()
 
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassExW")
-# TODO Support Ref(struct) -> ptr conversion in the wrapper
 @show RegisterClassExW(unsafe_convert(Ptr{WindowsAndMessaging_WNDCLASSEXW}, Ref(wc)))
 
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "CreateWindowExW")
@@ -220,7 +218,9 @@ windowtitle = L"Window Title"
     WindowsAndMessaging_HWND(0), 
     MenusAndResources_HMENU(0), 
     hinst, 
-    Ptr{Cvoid}(C_NULL))
+    Ptr{Cvoid}(C_NULL)
+)
+@show hwnd
 
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "ShowWindow")
 ShowWindow(hwnd, SWS.SW_SHOWNORMAL)
@@ -235,11 +235,12 @@ msg = WindowsAndMessaging_MSG(
     WindowsAndMessaging_WPARAM(0), 
     WindowsAndMessaging_LPARAM(0), 
     UInt32(0), 
-    DisplayDevices_POINT(Int32(0), Int32(0)))
-pmsg = unsafe_convert(Ptr{WindowsAndMessaging_MSG}, Ref(msg));
-@preserve msg while GetMessageW(pmsg, WindowsAndMessaging_HWND(0), UInt32(0), UInt32(0)).Value != 0
-    TranslateMessage(pmsg)
-    DispatchMessageW(pmsg)
+    DisplayDevices_POINT(Int32(0), Int32(0))
+)
+rmsg = Ref(msg)
+while GetMessageW(rmsg, WindowsAndMessaging_HWND(0), UInt32(0), UInt32(0)).Value != 0
+    TranslateMessage(rmsg)
+    DispatchMessageW(rmsg)
 end
 
 println("Done")
