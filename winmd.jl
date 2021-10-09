@@ -14,9 +14,7 @@ struct Winmd
     types::Typemap
 end
 
-function Winmd(prefix::String)
-    return Winmd(metadataDispenser() |> metadataImport, prefix, Typemap())
-end
+Winmd(prefix::String) = Winmd(metadataDispenser() |> metadataImport, prefix, Typemap())
 
 function convertTypeToJulia(type::ELEMENT_TYPE)::Type
     if type == ELEMENT_TYPE_I
@@ -59,9 +57,9 @@ function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::Type
         end
     else
         # Typedef or TypeRef
-        name = getName(mdi, mdt)
-        if isStruct(mdi, name)
-            return createStructType(winmd, name)
+        typename = getName(mdi, mdt)
+        if isStruct(mdi, typename)
+            return createStructType(winmd, typename)
         elseif isCallback(mdi, mdt)
             return Ptr{Cvoid}
         end
@@ -84,9 +82,19 @@ function convertTypeToJulia(winmd::Winmd, type::mdToken, typeattr::UInt32, array
 end
 
 convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$name"))
+convertTypeToJulia(winmd::Winmd, location::String, typename::String) = convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$location.$typename"))
 
-convertTypeNameToJulia(name::String) = replace(name, '.' => '_')
-convertTypeNameToJulia(name::String, prefix::String) = replace(name, "$(prefix)." => "") |> convertTypeNameToJulia
+# Just take the last part of the winmd typename
+function postDotSuffix(typename::String)
+    lastdotpos = findlast(isequal('.'), typename)
+    return typename[lastdotpos+1:end]
+end
+
+dotToUnderscore(s::String) = replace(s, '.' => '_')
+
+# convertTypeNameToJulia(typename::String) = dotToUnderscore(typename)
+convertTypeNameToJulia(typename::String) = postDotSuffix(typename)
+convertTypeNameToJulia(typename::String, prefix::String) = replace(typename, "$(prefix)." => "") |> convertTypeNameToJulia
 
 function createStructType(structname::String, fields::Vector{Tuple{String, Type}})
     fexps = [:($(Symbol(x[1]))::$(x[2])) for x in fields]
@@ -113,8 +121,8 @@ function createStructType(winmd::Winmd, wstructname::String)
             push!(jfields, (name, jfield))
         end
     end
-    undotname = convertTypeNameToJulia(wstructname, winmd.prefix)
-    structtype = createStructType(undotname, jfields)
+    jname = convertTypeNameToJulia(wstructname, winmd.prefix)
+    structtype = createStructType(jname, jfields)
     winmd.types[wstructname] = structtype 
     return structtype
 end
