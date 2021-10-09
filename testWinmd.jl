@@ -153,9 +153,9 @@ function myWndProc(
         prect = unsafe_convert(Ptr{DisplayDevices_RECT}, cconvert(Ptr{DisplayDevices_RECT}, Ref(rect)))
         # @show hdc prect hbr
         # FillRect(hdc, prect, hbr)
-        FillRect4(hdc, rect, hbr)
+        # FillRect4(hdc, rect, hbr)
         # FillRect2(hdc, Ref(rect), hbr)
-        # FillRect21(hdc, Ref(rect), hbr)
+        FillRect21(hdc, Ref(rect), hbr)
         # _rect = RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
         # _FillRect(hdc.Value, Ref(_rect), hbr.Value)
         DeleteObject(Ptr{Cvoid}(hbr.Value))
