@@ -1,21 +1,13 @@
 include("winmd.jl")
+
 import Base.unsafe_convert, Base.cconvert
 import Base.GC.@preserve
 
-# GC.enable(false)
-
-const FALSE = Int(false)
-const TRUE = Int(1)
-macro L_str(s) transcode(Cwchar_t, s) end
 RGB(r::UInt8, g::UInt8, b::UInt8)::UInt32 = (UInt32(r) << 16 | UInt32(g) << 8 | UInt32(b))
 
 winmd = Winmd("Windows.Win32")
 
-convertTypeToJulia(winmd, "Gdi.PAINTSTRUCT")
-convertTypeToJulia(winmd, "DisplayDevices.RECT")
-convertTypeToJulia(winmd, "WindowsAndMessaging.WNDCLASSEXW")
-convertTypeToJulia(winmd, "WindowsAndMessaging.MSG")
-
+# Defines
 const WSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WS_(?!._))", "WS")
 const CSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CS_(?!._))", "CS")
 const CWS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CW_(?!._))", "CW")
@@ -24,15 +16,19 @@ const IDCS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDC_(?!
 const WMS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WM_(?!._))", "WM")
 const COLORS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(COLOR_(?!._))", "COLOR")
 
+# TODO Convert delegates to callbacks, until then do this by hand
 macro wndproc(wp) return :(@cfunction($wp, SystemServices_LRESULT, (WindowsAndMessaging_HWND, UInt32, WindowsAndMessaging_WPARAM, WindowsAndMessaging_LPARAM))) end
 
+convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "PostQuitMessage")
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DefWindowProcW")
 convertFunctionToJulia(winmd, "Gdi.Apis", "BeginPaint")
 convertFunctionToJulia(winmd, "Gdi.Apis", "CreateSolidBrush")
 convertFunctionToJulia(winmd, "Gdi.Apis", "FillRect")
 convertFunctionToJulia(winmd, "Gdi.Apis", "DeleteObject")
 convertFunctionToJulia(winmd, "Gdi.Apis", "EndPaint")
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DefWindowProcW")
+
+convertTypeToJulia(winmd, "WindowsAndMessaging.WNDCLASSEXW")
 
 function myWndProc(
     hwnd::WindowsAndMessaging_HWND, 
@@ -46,7 +42,7 @@ function myWndProc(
         PostQuitMessage(Int32(0))
         return SystemServices_LRESULT(0)
     elseif uMsg == WMS.WM_PAINT
-        ps = Gdi_PAINTSTRUCT(Gdi_HDC(C_NULL), SystemServices_BOOL(FALSE), DisplayDevices_RECT(0,0,0,0), SystemServices_BOOL(FALSE), SystemServices_BOOL(FALSE), tuple(zeros(UInt8, 32)...))
+        ps = Gdi_PAINTSTRUCT(Gdi_HDC(C_NULL), SystemServices_BOOL(false), DisplayDevices_RECT(0,0,0,0), SystemServices_BOOL(false), SystemServices_BOOL(false), tuple(zeros(UInt8, 32)...))
         rps = Ref(ps)
         hdc = BeginPaint(hwnd, rps)
         hbr = CreateSolidBrush(RGB(rand(UInt8), rand(UInt8), rand(UInt8)))
@@ -59,9 +55,8 @@ function myWndProc(
     return DefWindowProcW(hwnd, uMsg, wParam, lParam)
 end
 
-convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
 rmod = Ref(Ptr{Cvoid}(C_NULL))
-GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
+GetModuleHandleExW(UInt32(0), Ref(UInt16(0)), rmod)
 hinst = SystemServices_HINSTANCE(rmod[])
 @show hinst
 
