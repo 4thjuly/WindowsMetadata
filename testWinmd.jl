@@ -5,6 +5,8 @@ import Base.GC.@preserve
 
 RGB(r::UInt8, g::UInt8, b::UInt8)::UInt32 = (UInt32(r) << 16 | UInt32(g) << 8 | UInt32(b))
 
+# TODO Generate converters for Handle types (handle.Value)
+# TODO Macro-ize 
 winmd = Winmd("Windows.Win32")
 
 # Defines
@@ -22,13 +24,22 @@ macro wndproc(wp) return :(@cfunction($wp, SystemServices_LRESULT, (WindowsAndMe
 convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "PostQuitMessage")
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DefWindowProcW")
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "SetTimer")
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "KillTimer")
 convertFunctionToJulia(winmd, "Gdi.Apis", "BeginPaint")
 convertFunctionToJulia(winmd, "Gdi.Apis", "CreateSolidBrush")
 convertFunctionToJulia(winmd, "Gdi.Apis", "FillRect")
 convertFunctionToJulia(winmd, "Gdi.Apis", "DeleteObject")
 convertFunctionToJulia(winmd, "Gdi.Apis", "EndPaint")
+convertFunctionToJulia(winmd, "SystemServices.Apis", "SetProcessWorkingSetSize")
+convertFunctionToJulia(winmd, "SystemServices.Apis", "GetCurrentProcess")
 
+# TODO Split this in 2, with type as last part only
+# convertTypeToJulia(winmd, "WindowsAndMessaging", "WNDCLASSEXW")
 convertTypeToJulia(winmd, "WindowsAndMessaging.WNDCLASSEXW")
+
+# Flush workingset after startup to make leak finding easier
+const IDT_FLUSH_WORKINGSET = 1
 
 function myWndProc(
     hwnd::WindowsAndMessaging_HWND, 
@@ -38,9 +49,16 @@ function myWndProc(
 
     if uMsg == WMS.WM_CREATE
         println("WM_CREATE")
+        SetTimer(hwnd, UInt64(IDT_FLUSH_WORKINGSET), UInt32(1000), Ptr{Cvoid}(C_NULL))
     elseif uMsg == WMS.WM_DESTROY
         PostQuitMessage(Int32(0))
         return SystemServices_LRESULT(0)
+    elseif uMsg == WMS.WM_TIMER
+        if (wParam.Value == IDT_FLUSH_WORKINGSET)
+            KillTimer(hwnd, UInt64(IDT_FLUSH_WORKINGSET))
+            SetProcessWorkingSetSize(SystemServices_HANDLE(-1), typemax(UInt64), typemax(UInt64))
+            return SystemServices_LRESULT(0)
+        end
     elseif uMsg == WMS.WM_PAINT
         ps = Gdi_PAINTSTRUCT(Gdi_HDC(C_NULL), SystemServices_BOOL(false), DisplayDevices_RECT(0,0,0,0), SystemServices_BOOL(false), SystemServices_BOOL(false), tuple(zeros(UInt8, 32)...))
         rps = Ref(ps)
@@ -92,7 +110,7 @@ class = RegisterClassExW(unsafe_convert(Ptr{WindowsAndMessaging_WNDCLASSEXW}, Re
 
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "CreateWindowExW")
 const SWS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(SW_(?!._))", "SW")
-windowtitle = L"Window Title"
+windowtitle = L"Julia Win32 App"
 hwnd = CreateWindowExW(
     UInt32(0), 
     pointer(classname), 
@@ -123,6 +141,7 @@ msg = WindowsAndMessaging_MSG(
     UInt32(0), 
     DisplayDevices_POINT(Int32(0), Int32(0)))
 rmsg = Ref(msg)
+
 while GetMessageW(rmsg, WindowsAndMessaging_HWND(0), UInt32(0), UInt32(0)).Value != 0
     TranslateMessage(rmsg)
     DispatchMessageW(rmsg)
