@@ -2,6 +2,8 @@ include("winmd.jl")
 import Base.unsafe_convert, Base.cconvert
 import Base.GC.@preserve
 
+# GC.enable(false)
+
 const FALSE = Int(false)
 const TRUE = Int(1)
 macro L_str(s) transcode(Cwchar_t, s) end
@@ -38,7 +40,6 @@ function myWndProc(
     wParam::WindowsAndMessaging_WPARAM, 
     lParam::WindowsAndMessaging_LPARAM)::SystemServices_LRESULT
 
-    # println("Msg: $uMsg")
     if uMsg == WMS.WM_CREATE
         println("WM_CREATE")
     elseif uMsg == WMS.WM_DESTROY
@@ -62,15 +63,15 @@ convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
 rmod = Ref(Ptr{Cvoid}(C_NULL))
 GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
 hinst = SystemServices_HINSTANCE(rmod[])
-@show hinst; println()
+@show hinst
 
 const HINST_NULL = SystemServices_HINSTANCE(0)
 convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadIconW")
 hicon = LoadIconW(HINST_NULL, Ptr{UInt16}(UInt(IDIS.IDI_INFORMATION)))
-@show hicon; println()
+@show hicon
 convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadCursorW")
 hcursor = LoadCursorW(HINST_NULL, Ptr{UInt16}(UInt(IDCS.IDC_ARROW)))
-@show hcursor; println()
+@show hcursor
 
 classname = L"Julia Window Class"
 # TODO Support string conversion in a constructor 
@@ -85,22 +86,22 @@ wc = WindowsAndMessaging_WNDCLASSEXW(
     hicon,
     hcursor,
     Gdi_HBRUSH(0),
-    Ptr{UInt16}(0),
-    unsafe_convert(Ptr{UInt16}, classname),
+    C_NULL,
+    pointer(classname),
     Gdi_HICON(0)
 )
-@show wc; println()
 
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassExW")
-@show RegisterClassExW(unsafe_convert(Ptr{WindowsAndMessaging_WNDCLASSEXW}, Ref(wc)))
+class = RegisterClassExW(unsafe_convert(Ptr{WindowsAndMessaging_WNDCLASSEXW}, Ref(wc)))
+@show class
 
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "CreateWindowExW")
 const SWS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(SW_(?!._))", "SW")
 windowtitle = L"Window Title"
 hwnd = CreateWindowExW(
     UInt32(0), 
-    unsafe_convert(Ptr{UInt16}, classname), 
-    unsafe_convert(Ptr{UInt16}, windowtitle), 
+    pointer(classname), 
+    pointer(windowtitle), 
     WSS.WS_OVERLAPPEDWINDOW, 
     CWS.CW_USEDEFAULT, 
     CWS.CW_USEDEFAULT, 
@@ -109,8 +110,7 @@ hwnd = CreateWindowExW(
     WindowsAndMessaging_HWND(0), 
     MenusAndResources_HMENU(0), 
     hinst, 
-    Ptr{Cvoid}(C_NULL)
-)
+    Ptr{Cvoid}(C_NULL))
 @show hwnd
 
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "ShowWindow")
@@ -126,8 +126,7 @@ msg = WindowsAndMessaging_MSG(
     WindowsAndMessaging_WPARAM(0), 
     WindowsAndMessaging_LPARAM(0), 
     UInt32(0), 
-    DisplayDevices_POINT(Int32(0), Int32(0))
-)
+    DisplayDevices_POINT(Int32(0), Int32(0)))
 rmsg = Ref(msg)
 while GetMessageW(rmsg, WindowsAndMessaging_HWND(0), UInt32(0), UInt32(0)).Value != 0
     TranslateMessage(rmsg)
