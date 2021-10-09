@@ -2,8 +2,6 @@ include("winmd.jl")
 import Base.unsafe_convert, Base.cconvert
 import Base.GC.@preserve
 
-# GC.enable(false)
-
 const FALSE = Int(false)
 const TRUE = Int(1)
 macro L_str(s) transcode(Cwchar_t, s) end
@@ -34,66 +32,6 @@ convertFunctionToJulia(winmd, "Gdi.Apis", "DeleteObject")
 convertFunctionToJulia(winmd, "Gdi.Apis", "EndPaint")
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DefWindowProcW")
 
-
-const Gdi32 = "Gdi32" 
-const User32 = "User32" 
-
-const PVOID = Ptr{Cvoid}
-const HANDLE = PVOID
-const HDC = HANDLE
-const HWND = HANDLE
-const BOOL = Cint
-const COLORREF = DWORD
-const BYTE = Cuchar
-const LONG = Clong
-const HGDIOBJ = HANDLE
-const HBRUSH = HANDLE
-
-struct tagRECT
-    left::LONG
-    top::LONG
-    right::LONG
-    bottom::LONG
-end
-const RECT = tagRECT
-
-struct tagPAINTSTRUCT
-    hdc::HDC
-    fErase::BOOL
-    rcPaint::RECT
-    fRestore::BOOL
-    fIncUpdate::BOOL
-    rgbReserved::NTuple{32, BYTE}
-end
-const PAINTSTRUCT = tagPAINTSTRUCT
-const LPPAINTSTRUCT = Ptr{tagPAINTSTRUCT}
-
-_BeginPaint(hWnd::HWND, lpPaint::LPPAINTSTRUCT) = ccall((:BeginPaint, User32), HDC, (HWND, LPPAINTSTRUCT), hWnd, lpPaint)
-_EndPaint(hWnd::HWND, lpPaint) =  ccall((:EndPaint, User32), BOOL, (HWND, Ptr{PAINTSTRUCT}), hWnd, lpPaint)
-_RGB(r::BYTE, g::BYTE, b::BYTE)::COLORREF = (UInt32(r) << 16 | UInt32(g) << 8 | UInt32(b))
-_DeleteObject(ho::HGDIOBJ) = ccall((:DeleteObject, Gdi32), BOOL, (HGDIOBJ,), ho)
-_CreateSolidBrush(color::COLORREF) = ccall((:CreateSolidBrush, Gdi32), HBRUSH, (COLORREF,), color)
-_FillRect(hDC::HDC, lprc, hbr::HBRUSH) = ccall((:FillRect, User32), Cint, (HDC, Ptr{RECT}, HBRUSH), hDC, lprc, hbr)
-
-function FillRect2(hDC::Gdi_HDC, lprc::Ref{DisplayDevices_RECT}, hbr::Gdi_HBRUSH) 
-    return ccall((:FillRect, User32), Cint, (Gdi_HDC, Ptr{DisplayDevices_RECT}, Gdi_HBRUSH), hDC, lprc, hbr)
-end
-
-function FillRect21(hDC::Gdi_HDC, lprc::Ref{DisplayDevices_RECT}, hbr::Gdi_HBRUSH) 
-    return ccall((:FillRect, User32), Cint, (Gdi_HDC, Ref{DisplayDevices_RECT}, Gdi_HBRUSH), hDC, lprc, hbr)
-end
-
-function FillRect3(hDC::Gdi_HDC, rect::DisplayDevices_RECT, hbr::Gdi_HBRUSH) 
-    rrect = Ref(rect)
-    return ccall((:FillRect, User32), Cint, (Gdi_HDC, Ptr{DisplayDevices_RECT}, Gdi_HBRUSH), hDC, rrect, hbr)
-end
-
-function FillRect4(hDC::Gdi_HDC, rect::DisplayDevices_RECT, hbr::Gdi_HBRUSH) 
-    rrect = Ref(rect)
-    prect = unsafe_convert(Ptr{DisplayDevices_RECT}, rrect)
-    return ccall((:FillRect, User32), Cint, (Gdi_HDC, Ptr{DisplayDevices_RECT}, Gdi_HBRUSH), hDC, prect, hbr)
-end
-
 function myWndProc(
     hwnd::WindowsAndMessaging_HWND, 
     uMsg::UInt32, 
@@ -107,60 +45,13 @@ function myWndProc(
         PostQuitMessage(Int32(0))
         return SystemServices_LRESULT(0)
     elseif uMsg == WMS.WM_PAINT
-
-        # By hand
-        # ps = PAINTSTRUCT( 0, false, RECT(0, 0, 0, 0), false, false, tuple(zeros(BYTE,32)...) )
-        # rps = Ref(ps) # BeginPaint will modify the ref, not the immutable original
-        # hdc = _BeginPaint(hwnd.Value, unsafe_convert(LPPAINTSTRUCT, rps))
-        # # @info "Paint $(rps[].rcPaint)"
-        # hbr = _CreateSolidBrush(_RGB(rand(BYTE), rand(BYTE), rand(BYTE)))
-        # _FillRect(hdc, Ref(rps[].rcPaint), hbr)
-        # _DeleteObject(hbr)
-        # _EndPaint(hwnd.Value, rps)
-
-
-        # Hybrid
-        # ps = PAINTSTRUCT( 0, false, RECT(0, 0, 0, 0), false, false, tuple(zeros(BYTE,32)...))
-        # rps = Ref(ps) # BeginPaint will modify the ref, not the immutable original
-        # hdc = _BeginPaint(hwnd.Value, unsafe_convert(LPPAINTSTRUCT, rps))
-        # hbr = CreateSolidBrush(RGB(rand(UInt8), rand(UInt8), rand(UInt8)))
-        # rcp = rps[].rcPaint
-        # _rect = RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
-        # _FillRect(hdc, Ref(_rect), hbr.Value)
-        # DeleteObject(Ptr{Cvoid}(hbr.Value))
-        # _EndPaint(hwnd.Value, rps)
-
-
-        # Hybrid 2
-        # ps = Gdi_PAINTSTRUCT(Gdi_HDC(C_NULL), SystemServices_BOOL(FALSE), DisplayDevices_RECT(0,0,0,0), SystemServices_BOOL(FALSE), SystemServices_BOOL(FALSE), tuple(zeros(UInt8, 32)...))
-        # rps = Ref(ps)
-        # @preserve ps hdc = BeginPaint(hwnd, unsafe_convert(Ptr{Gdi_PAINTSTRUCT}, rps))
-        # hbr = _CreateSolidBrush(_RGB(rand(BYTE), rand(BYTE), rand(BYTE)))
-        # rcp = rps[].rcPaint
-        # _rect = RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
-        # _FillRect(hdc.Value, Ref(_rect), hbr)
-        # _DeleteObject(hbr)
-        # @preserve ps EndPaint(hwnd, unsafe_convert(Ptr{Gdi_PAINTSTRUCT}, rps))
-
-
-        # New
         ps = Gdi_PAINTSTRUCT(Gdi_HDC(C_NULL), SystemServices_BOOL(FALSE), DisplayDevices_RECT(0,0,0,0), SystemServices_BOOL(FALSE), SystemServices_BOOL(FALSE), tuple(zeros(UInt8, 32)...))
         rps = Ref(ps)
         hdc = BeginPaint(hwnd, rps)
         hbr = CreateSolidBrush(RGB(rand(UInt8), rand(UInt8), rand(UInt8)))
-        rcp = rps[].rcPaint
-        rect = DisplayDevices_RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
-        # prect = unsafe_convert(Ptr{DisplayDevices_RECT}, cconvert(Ptr{DisplayDevices_RECT}, Ref(rect)))
-        # @show hdc prect hbr
-        FillRect(hdc, Ref(rect), hbr)
-        # FillRect4(hdc, rect, hbr)
-        # FillRect2(hdc, Ref(rect), hbr)
-        # FillRect21(hdc, Ref(rect), hbr)
-        # _rect = RECT(rcp.left, rcp.top, rcp.right, rcp.bottom)
-        # _FillRect(hdc.Value, Ref(_rect), hbr.Value)
+        FillRect(hdc, Ref(rps[].rcPaint), hbr)
         DeleteObject(Ptr{Cvoid}(hbr.Value))
         EndPaint(hwnd, rps)
-
         return SystemServices_LRESULT(0)
     end
 
@@ -206,7 +97,7 @@ convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassExW")
 convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "CreateWindowExW")
 const SWS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(SW_(?!._))", "SW")
 windowtitle = L"Window Title"
-@preserve classname windowtitle hwnd = CreateWindowExW(
+hwnd = CreateWindowExW(
     UInt32(0), 
     unsafe_convert(Ptr{UInt16}, classname), 
     unsafe_convert(Ptr{UInt16}, windowtitle), 
