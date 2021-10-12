@@ -114,40 +114,15 @@ struct IMetaDataDispenser
     OpenScopeOnMemmory::Ptr{Cvoid}
 end
 
-# TODO Rename to Vtbl
-# struct COMObject{T}
-#     pvtbl::Ptr{T}
-# end
-
-# # TODO Use a macro to get vtbl from COMObject rather than store in a wrapper?
-# struct COMWrapper{T}
-#     punk::Ptr{COMObject{T}}
-#     vtbl::T
-# end
-
 struct COMObject{T}
     pvtbl::Ptr{T}
 end
 
 struct COMWrapper{T}
-    pcobj::Ptr{COMObject{T}}
+    punk::Ptr{COMObject{T}}
 end
 
-# function metadataDispenser()
-#     rpmdd = Ref(Ptr{COMObject{IMetaDataDispenser}}(C_NULL))
-#     res = @ccall "Rometadata".MetaDataGetDispenser( 
-#         Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
-#         Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, 
-#         rpmdd::Ref{Ptr{COMObject{IMetaDataDispenser}}}
-#         )::HRESULT
-#     if res == S_OK
-#         pmdd = rpmdd[]
-#         mdd = unsafe_load(pmdd)
-#         vtbl = unsafe_load(mdd.pvtbl)
-#         return COMWrapper{IMetaDataDispenser}(pmdd, vtbl)
-#     end
-#     throw(HRESULT_FAILED(res))
-# end
+getVtbl(cw::COMWrapper{T}) where T = unsafe_load(unsafe_load(cw.punk).pvtbl)
 
 function metadataDispenser()
     rpmdd = Ref(Ptr{COMObject{IMetaDataDispenser}}(C_NULL))
@@ -228,33 +203,14 @@ struct IMetaDataImport
     IsGlobal::Ptr{Cvoid} 
 end
 
-# const CMetaDataImport = COMWrapper{IMetaDataImport}
+const CWMetaDataImport = COMWrapper{IMetaDataImport}
+const CWMetaDataDispenser = COMWrapper{IMetaDataDispenser}
 
-# function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
-#     rpmdi = Ref(Ptr{COMObject{IMetaDataImport}}(C_NULL))
-#     res = @ccall $(mdd.vtbl.OpenScope)(
-#         mdd.punk::Ref{COMObject{IMetaDataDispenser}}, 
-#         "Windows.Win32.winmd"::Cwstring,
-#         CorOpenFlags_ofRead::Cuint, 
-#         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
-#         rpmdi::Ref{Ptr{COMObject{IMetaDataImport}}}
-#         )::HRESULT
-#     if res == S_OK
-#         pmdi = rpmdi[]
-#         mdi = unsafe_load(pmdi)
-#         vtbl = unsafe_load(mdi.pvtbl)
-#         return CMetaDataImport(pmdi, vtbl)
-#     end
-#     throw(HRESULT_FAILED(res))
-# end
-
-getVtbl(cw::COMWrapper{T}) where T = unsafe_load(unsafe_load(cw.pcobj).pvtbl)
-
-function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
-    @time vtbl = getVtbl(mdd)
+function metadataImport(mdd::CWMetaDataDispenser)
+    vtbl = getVtbl(mdd)
     rpmdi = Ref(Ptr{COMObject{IMetaDataImport}}(C_NULL))
     res = @ccall $(vtbl.OpenScope)(
-        mdd.pcobj::Ref{COMObject{IMetaDataDispenser}}, 
+        mdd.punk::Ref{COMObject{IMetaDataDispenser}}, 
         "Windows.Win32.winmd"::Cwstring,
         CorOpenFlags_ofRead::Cuint, 
         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
@@ -266,38 +222,11 @@ function metadataImport(mdd::COMWrapper{IMetaDataDispenser})
     throw(HRESULT_FAILED(res))
 end
 
-# TODO comcall macro?
-#   vtbl = unsafe_load(unsafe_load(co).pvtbl))
-# function metadataImport(co::COMObject{IMetaDataDispenser})
-#     rpmdi = Ref(Ptr{Vtbl{IMetaDataImport}}(C_NULL))
-#     res = @comcall OpenScope(co::COMObject{IMetaDataDispenser}, 
-#         "Windows.Win32.winmd"::Cwstring,
-#         CorOpenFlags_ofRead::Cuint, 
-#         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
-#         rpmdi::Ref{Ptr{Vtbl{IMetaDataImport}}}
-#         )::HRESULT
-#     return rpmdi[], res
-# end
-
-# function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
-#     rStructToken = Ref(mdToken(0))
-#     res = @ccall $(mdi.vtbl.FindTypeDefByName)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         name::Cwstring, 
-#         mdTokenNil::mdToken, 
-#         rStructToken::Ref{mdToken}
-#         )::HRESULT
-#     if res == S_OK
-#         return rStructToken[]
-#     end
-#     return mdTokenNil
-# end
-
-function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
+function findTypeDef(mdi::CWMetaDataImport, name::String)::mdToken
     vtbl = getVtbl(mdi)
     rStructToken = Ref(mdToken(0))
     res = @ccall $(vtbl.FindTypeDefByName)(
-        mdi.pcobj::Ref{COMObject{IMetaDataImport}}, 
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
         name::Cwstring, 
         mdTokenNil::mdToken, 
         rStructToken::Ref{mdToken}
@@ -308,27 +237,11 @@ function findTypeDef(mdi::COMWrapper{IMetaDataImport}, name::String)::mdToken
     return mdTokenNil
 end
 
-# function findMethod(mdi::CMetaDataImport, td::mdTypeDef, methodName::String)
-#     rmethodDef = Ref(mdToken(0))
-#     res = @ccall $(mdi.vtbl.FindMethod)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         td::mdTypeDef,
-#         methodName::Cwstring, 
-#         C_NULL::Ref{Cvoid}, 
-#         0::ULONG, 
-#         rmethodDef::Ref{mdToken}
-#         )::HRESULT 
-#     if res == S_OK
-#         return rmethodDef[]
-#     end
-#     return mdTokenNil
-# end
-
-function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName::String)
+function findMethod(mdi::CWMetaDataImport, td::mdTypeDef, methodName::String)
     vtbl = getVtbl(mdi)
     rmethodDef = Ref(mdToken(0))
     res = @ccall $(vtbl.FindMethod)(
-        mdi.pcobj::Ref{COMObject{IMetaDataImport}}, 
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
         td::mdTypeDef,
         methodName::Cwstring, 
         C_NULL::Ref{Cvoid}, 
@@ -341,486 +254,486 @@ function findMethod(mdi::COMWrapper{IMetaDataImport}, td::mdTypeDef, methodName:
     return mdTokenNil
 end
 
-# function getPInvokeMap(mdi::CMetaDataImport, md::mdMethodDef)
-#     rflags = Ref(DWORD(0))
-#     importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rnameLen = Ref(ULONG(0))
-#     rmoduleRef = Ref(mdModuleRef(0))
-#     res = @ccall $(mdi.vtbl.GetPinvokeMap)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         md::mdMethodDef, 
-#         rflags::Ref{DWORD},
-#         importname::Ref{Cwchar_t},
-#         length(importname)::ULONG, 
-#         rnameLen::Ref{ULONG}, 
-#         rmoduleRef::Ref{mdModuleRef}
-#         )::HRESULT
-#     if res == S_OK
-#         return (rmoduleRef[], transcode(String, importname[begin:rnameLen[]-1]))
-#     end
-#     return (mdTokenNil, "")
-# end
+function getPInvokeMap(mdi::CWMetaDataImport, md::mdMethodDef)
+    rflags = Ref(DWORD(0))
+    importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rnameLen = Ref(ULONG(0))
+    rmoduleRef = Ref(mdModuleRef(0))
+    res = @ccall $(getVtbl(mdi).GetPinvokeMap)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        md::mdMethodDef, 
+        rflags::Ref{DWORD},
+        importname::Ref{Cwchar_t},
+        length(importname)::ULONG, 
+        rnameLen::Ref{ULONG}, 
+        rmoduleRef::Ref{mdModuleRef}
+        )::HRESULT
+    if res == S_OK
+        return (rmoduleRef[], transcode(String, importname[begin:rnameLen[]-1]))
+    end
+    return (mdTokenNil, "")
+end
 
-# function getModuleRefProps(mdi::CMetaDataImport, mr::mdModuleRef)
-#     modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rmodulanameLen = Ref(ULONG(0))
-#     res = @ccall $(mdi.vtbl.GetModuleRefProps)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         mr::mdModuleRef,
-#         modulename::Ref{Cwchar_t},
-#         length(modulename)::ULONG,
-#         rmodulanameLen::Ref{ULONG}
-#         )::HRESULT
-#     if res == S_OK
-#         return transcode(String, modulename[begin:rmodulanameLen[]-1])
-#     end
-#     return ""
-# end
+function getModuleRefProps(mdi::CWMetaDataImport, mr::mdModuleRef)
+    modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rmodulanameLen = Ref(ULONG(0))
+    res = @ccall $(getVtbl(mdi).GetModuleRefProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        mr::mdModuleRef,
+        modulename::Ref{Cwchar_t},
+        length(modulename)::ULONG,
+        rmodulanameLen::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return transcode(String, modulename[begin:rmodulanameLen[]-1])
+    end
+    return ""
+end
 
-# function getParamForMethodIndex(mdi::CMetaDataImport, md::mdMethodDef, i::Int)
-#     rparamDef = Ref(mdParamDef(0))
-#     res = @ccall $(mdi.vtbl.GetParamForMethodIndex)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         md::mdMethodDef,
-#         ULONG(i)::ULONG,
-#         rparamDef::Ref{mdParamDef}
-#     )::HRESULT
-#     if res == S_OK
-#         return rparamDef[]
-#     end
-#     return mdTokenNil
-# end
+function getParamForMethodIndex(mdi::CWMetaDataImport, md::mdMethodDef, i::Int)
+    rparamDef = Ref(mdParamDef(0))
+    res = @ccall $(getVtbl(mdi).GetParamForMethodIndex)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        md::mdMethodDef,
+        ULONG(i)::ULONG,
+        rparamDef::Ref{mdParamDef}
+    )::HRESULT
+    if res == S_OK
+        return rparamDef[]
+    end
+    return mdTokenNil
+end
 
-# const CorParamAttr_pdIn                        =   0x00000001
-# const CorParamAttr_pdOut                       =   0x00000002  
-# const CorParamAttr_pdOptional                  =   0x00000010  
-# const CorParamAttr_pdReservedMask              =   0x0000f000  
-# const CorParamAttr_pdHasDefault                =   0x00001000  
-# const CorParamAttr_pdHasFieldMarshal           =   0x00002000  
-# const CorParamAttr_pdUnused                    =   0x0000cfe0  
+const CorParamAttr_pdIn                        =   0x00000001
+const CorParamAttr_pdOut                       =   0x00000002  
+const CorParamAttr_pdOptional                  =   0x00000010  
+const CorParamAttr_pdReservedMask              =   0x0000f000  
+const CorParamAttr_pdHasDefault                =   0x00001000  
+const CorParamAttr_pdHasFieldMarshal           =   0x00002000  
+const CorParamAttr_pdUnused                    =   0x0000cfe0  
 
-# # const CORPARAMATTR_PDIN                        =   0x00000001
-# # const CORPARAMATTR_PDOUT                       =   0x00000002  
-# # const CORPARAMATTR_PDOPTIONAL                  =   0x00000010  
-# # const CORPARAMATTR_PDRESERVEDMASK              =   0x0000f000  
-# # const CORPARAMATTR_PDHASDEFAULT                =   0x00001000  
-# # const CORPARAMATTR_PDHASFIELDMARSHAL           =   0x00002000  
-# # const CORPARAMATTR_PDUNUSED                    =   0x0000cfe0  
+# const CORPARAMATTR_PDIN                        =   0x00000001
+# const CORPARAMATTR_PDOUT                       =   0x00000002  
+# const CORPARAMATTR_PDOPTIONAL                  =   0x00000010  
+# const CORPARAMATTR_PDRESERVEDMASK              =   0x0000f000  
+# const CORPARAMATTR_PDHASDEFAULT                =   0x00001000  
+# const CORPARAMATTR_PDHASFIELDMARSHAL           =   0x00002000  
+# const CORPARAMATTR_PDUNUSED                    =   0x0000cfe0  
 
-# function getParamProps(mdi::CMetaDataImport, paramDef::mdParamDef)
-#     paramName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rparamMethodDef = Ref(mdMethodDef(0))
-#     rparamNameLen = Ref(ULONG(0))
-#     rseq = Ref(ULONG(0))
-#     rattr = Ref(DWORD(0))
-#     rcplustypeFlag = Ref(DWORD(0))
-#     rpvalue = Ptr{Cvoid}(0)
-#     rcchValue = Ref(ULONG(0))
-#     res = @ccall $(mdi.vtbl.GetParamProps)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         paramDef::mdParamDef,
-#         rparamMethodDef::Ref{mdMethodDef},
-#         rseq::Ref{ULONG},
-#         paramName::Ref{Cwchar_t},
-#         length(paramName)::ULONG,
-#         rparamNameLen::Ptr{ULONG},
-#         rattr::Ptr{DWORD},
-#         rcplustypeFlag::Ptr{DWORD},
-#         rpvalue::Ptr{Cvoid},
-#         rcchValue::Ptr{ULONG}
-#         )::HRESULT
-#     if res == S_OK
-#         return transcode(String, paramName[begin:rparamNameLen[]-1]), rattr[]
-#     end
-#     return "", 0
-# end
+function getParamProps(mdi::CWMetaDataImport, paramDef::mdParamDef)
+    paramName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rparamMethodDef = Ref(mdMethodDef(0))
+    rparamNameLen = Ref(ULONG(0))
+    rseq = Ref(ULONG(0))
+    rattr = Ref(DWORD(0))
+    rcplustypeFlag = Ref(DWORD(0))
+    rpvalue = Ptr{Cvoid}(0)
+    rcchValue = Ref(ULONG(0))
+    res = @ccall $(getVtbl(mdi).GetParamProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        paramDef::mdParamDef,
+        rparamMethodDef::Ref{mdMethodDef},
+        rseq::Ref{ULONG},
+        paramName::Ref{Cwchar_t},
+        length(paramName)::ULONG,
+        rparamNameLen::Ptr{ULONG},
+        rattr::Ptr{DWORD},
+        rcplustypeFlag::Ptr{DWORD},
+        rpvalue::Ptr{Cvoid},
+        rcchValue::Ptr{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return transcode(String, paramName[begin:rparamNameLen[]-1]), rattr[]
+    end
+    return "", 0
+end
 
-# function getMethodProps(mdi::CMetaDataImport, methodDef::mdMethodDef)
-#     rclass = Ref(mdTypeDef(0))
-#     methodName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rmethodNameLen = Ref(ULONG(0))
-#     rattr = Ref(DWORD(0))
-#     rpsig = Ref(Ptr{COR_SIGNATURE}(C_NULL))
-#     rsigLen = Ref(ULONG(0))
-#     rrva = Ref(ULONG(0))
-#     rflags = Ref(DWORD(0))
-#     res = @ccall $(mdi.vtbl.GetMethodProps)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         methodDef::mdMethodDef,
-#         rclass::Ref{mdTypeDef},
-#         methodName::Ref{Cwchar_t},
-#         length(methodName)::ULONG,
-#         rmethodNameLen::Ref{ULONG},
-#         rattr::Ref{DWORD},
-#         rpsig::Ref{Ptr{COR_SIGNATURE}},
-#         rsigLen::Ref{ULONG},
-#         rrva::Ref{ULONG},
-#         rflags::Ref{DWORD}
-#         )::HRESULT
-#     if res == S_OK
-#         return unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
-#     end
-#     throw(HRESULT_FAILED(res))
-# end
+function getMethodProps(mdi::CWMetaDataImport, methodDef::mdMethodDef)
+    rclass = Ref(mdTypeDef(0))
+    methodName = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rmethodNameLen = Ref(ULONG(0))
+    rattr = Ref(DWORD(0))
+    rpsig = Ref(Ptr{COR_SIGNATURE}(C_NULL))
+    rsigLen = Ref(ULONG(0))
+    rrva = Ref(ULONG(0))
+    rflags = Ref(DWORD(0))
+    res = @ccall $(getVtbl(mdi).GetMethodProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        methodDef::mdMethodDef,
+        rclass::Ref{mdTypeDef},
+        methodName::Ref{Cwchar_t},
+        length(methodName)::ULONG,
+        rmethodNameLen::Ref{ULONG},
+        rattr::Ref{DWORD},
+        rpsig::Ref{Ptr{COR_SIGNATURE}},
+        rsigLen::Ref{ULONG},
+        rrva::Ref{ULONG},
+        rflags::Ref{DWORD}
+        )::HRESULT
+    if res == S_OK
+        return unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
+    end
+    throw(HRESULT_FAILED(res))
+end
 
-# function uncompress(sig::AbstractVector{COR_SIGNATURE})
-#     val::UInt32 = UInt32(0)
-#     len = 0
-#     if sig[1] & 0x80 == 0x00
-#         val = UInt32(sig[1])
-#         len = 1
-#     elseif sig[1] & 0xC0 == 0x80
-#         val = UInt32(sig[1] & 0x3F) << 8 | UInt32(sig[2])
-#         len = 2
-#     elseif sig[1] & 0xE0 == 0xC0
-#         val = UInt32(sig[1] & 0x1f) << 24 | UInt32(sig[2]) << 16 | UInt32(sig[3]) << 8 | UInt32(sig[4])
-#         len = 4
-#     else
-#         error("Bad signature")
-#     end
-#     return (val, len)
-# end
+function uncompress(sig::AbstractVector{COR_SIGNATURE})
+    val::UInt32 = UInt32(0)
+    len = 0
+    if sig[1] & 0x80 == 0x00
+        val = UInt32(sig[1])
+        len = 1
+    elseif sig[1] & 0xC0 == 0x80
+        val = UInt32(sig[1] & 0x3F) << 8 | UInt32(sig[2])
+        len = 2
+    elseif sig[1] & 0xE0 == 0xC0
+        val = UInt32(sig[1] & 0x1f) << 24 | UInt32(sig[2]) << 16 | UInt32(sig[3]) << 8 | UInt32(sig[4])
+        len = 4
+    else
+        error("Bad signature")
+    end
+    return (val, len)
+end
 
-# function uncompressToken(sig::AbstractVector{COR_SIGNATURE})
-#     val, len = uncompress(sig)
-#     tok::mdToken = mdTokenNil
-#     if val & 0x03 == 0x00
-#         tok = mdTypeDef(UInt32(TOKEN_TYPE_TYPEDEF) | (val >> 2))
-#     elseif val & 0x03 == 0x01
-#         tok = mdTypeRef(UInt32(TOKEN_TYPE_TYPEREF) | (val >> 2))
-#     elseif val & 0x03 == 0x02
-#         tok = mdTypeDef(UInt32(TOKEN_TYPE_TYPESPEC) | (val >> 2))
-#     end
-#     return tok, len
-# end
+function uncompressToken(sig::AbstractVector{COR_SIGNATURE})
+    val, len = uncompress(sig)
+    tok::mdToken = mdTokenNil
+    if val & 0x03 == 0x00
+        tok = mdTypeDef(UInt32(TOKEN_TYPE_TYPEDEF) | (val >> 2))
+    elseif val & 0x03 == 0x01
+        tok = mdTypeRef(UInt32(TOKEN_TYPE_TYPEREF) | (val >> 2))
+    elseif val & 0x03 == 0x02
+        tok = mdTypeDef(UInt32(TOKEN_TYPE_TYPESPEC) | (val >> 2))
+    end
+    return tok, len
+end
 
-# # check
-# function isValidToken(mdi::CMetaDataImport, tok::mdToken)::Bool
-#     return @ccall $(mdi.vtbl.IsValidToken)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         tok::mdToken
-#         )::Bool
-# end
+# check
+function isValidToken(mdi::CWMetaDataImport, tok::mdToken)::Bool
+    return @ccall $(getVtbl(mdi).IsValidToken)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        tok::mdToken
+        )::Bool
+end
 
-# function getTypeRefName(mdi::CMetaDataImport, tr::mdTypeRef)::String
-#     rscope = Ref(mdToken(0))
-#     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rnameLen = Ref(ULONG(0))
-#     res = @ccall $(mdi.vtbl.GetTypeRefProps)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         tr::mdTypeRef,
-#         rscope::Ref{mdToken},
-#         name::Ref{Cwchar_t},
-#         length(name)::ULONG,
-#         rnameLen::Ref{ULONG}
-#         )::HRESULT
-#     if res == S_OK
-#         return transcode(String, name[begin:rnameLen[]-1])
-#     end
-#     return ""
-# end
+function getTypeRefName(mdi::CWMetaDataImport, tr::mdTypeRef)::String
+    rscope = Ref(mdToken(0))
+    name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rnameLen = Ref(ULONG(0))
+    res = @ccall $(getVtbl(mdi).GetTypeRefProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        tr::mdTypeRef,
+        rscope::Ref{mdToken},
+        name::Ref{Cwchar_t},
+        length(name)::ULONG,
+        rnameLen::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return transcode(String, name[begin:rnameLen[]-1])
+    end
+    return ""
+end
 
-# function getName(mdi::CMetaDataImport, mdt::mdToken)::String
-#     if mdt & UInt32(TOKEN_TYPE_TYPEDEF) == UInt32(TOKEN_TYPE_TYPEDEF)
-#         props = getTypeDefProps(mdi, mdt) 
-#         return props.name
-#     elseif mdt & UInt32(TOKEN_TYPE_TYPEREF) == UInt32(TOKEN_TYPE_TYPEREF)
-#         return getTypeRefName(mdi, mdt)
-#     else
-#         return ""
-#     end
-# end
+function getName(mdi::CWMetaDataImport, mdt::mdToken)::String
+    if mdt & UInt32(TOKEN_TYPE_TYPEDEF) == UInt32(TOKEN_TYPE_TYPEDEF)
+        props = getTypeDefProps(mdi, mdt) 
+        return props.name
+    elseif mdt & UInt32(TOKEN_TYPE_TYPEREF) == UInt32(TOKEN_TYPE_TYPEREF)
+        return getTypeRefName(mdi, mdt)
+    else
+        return ""
+    end
+end
 
-# function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
-#     rStructToken = Ref(mdToken(0))
-#     res = @ccall $(mdi.vtbl.FindTypeDefByName)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         name::Cwstring, 
-#         mdTokenNil::mdToken, 
-#         rStructToken::Ref{mdToken}
-#         )::HRESULT
-#     if res == S_OK
-#         return rStructToken[]
-#     end
-#     return mdTokenNil
-# end
+function findTypeDef(mdi::CWMetaDataImport, name::String)::mdToken
+    rStructToken = Ref(mdToken(0))
+    res = @ccall $(getVtbl(mdi).FindTypeDefByName)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        name::Cwstring, 
+        mdTokenNil::mdToken, 
+        rStructToken::Ref{mdToken}
+        )::HRESULT
+    if res == S_OK
+        return rStructToken[]
+    end
+    return mdTokenNil
+end
 
-# function getTypeDefProps(mdi::CMetaDataImport, td::mdTypeDef)
-#     name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rnameLen = Ref(ULONG(0))
-#     rflags = Ref(DWORD(0))
-#     rextends = Ref(mdToken(0))
-#     res = @ccall $(mdi.vtbl.GetTypeDefProps)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         td::mdTypeDef,
-#         name::Ref{Cwchar_t},
-#         length(name)::ULONG,
-#         rnameLen::Ref{ULONG},
-#         rflags::Ref{DWORD},
-#         rextends::Ref{mdToken}
-#         )::HRESULT
-#     if res == S_OK
-#         return (name=transcode(String, name[begin:rnameLen[]-1]), extends=rextends[], flags=rflags[])
-#     end
-#     # @show td
-#     throw(HRESULT_FAILED(res))
-# end
+function getTypeDefProps(mdi::CWMetaDataImport, td::mdTypeDef)
+    name = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rnameLen = Ref(ULONG(0))
+    rflags = Ref(DWORD(0))
+    rextends = Ref(mdToken(0))
+    res = @ccall $(getVtbl(mdi).GetTypeDefProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        td::mdTypeDef,
+        name::Ref{Cwchar_t},
+        length(name)::ULONG,
+        rnameLen::Ref{ULONG},
+        rflags::Ref{DWORD},
+        rextends::Ref{mdToken}
+        )::HRESULT
+    if res == S_OK
+        return (name=transcode(String, name[begin:rnameLen[]-1]), extends=rextends[], flags=rflags[])
+    end
+    # @show td
+    throw(HRESULT_FAILED(res))
+end
 
-# function fieldValue(jtype::DataType, pval::UVCP_CONSTANT)
-#     vt = Ptr{jtype}(pval)
-#     return unsafe_load(vt)
-# end
+function fieldValue(jtype::DataType, pval::UVCP_CONSTANT)
+    vt = Ptr{jtype}(pval)
+    return unsafe_load(vt)
+end
 
-# function getFieldProps(mdi::CMetaDataImport, fd::mdFieldDef)
-#     rclass = Ref(mdTypeDef(0))
-#     fieldname = Vector{Cwchar_t}(undef, DEFAULT_BUFFER_LEN)
-#     rfieldnameLen = Ref(ULONG(0))
-#     rattrs = Ref(DWORD(0))
-#     rpsigblob = Ref(Ptr{COR_SIGNATURE}(0))
-#     rsigbloblen = Ref(ULONG(0))
-#     rcplusTypeFlag = Ref(DWORD(0))
-#     rvalue = Ref(UVCP_CONSTANT(0))
-#     rvalueLen = Ref(ULONG(0))
-#     res = @ccall $(mdi.vtbl.GetFieldProps)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         fd::mdFieldDef,
-#         rclass::Ref{mdTypeDef},
-#         fieldname::Ref{Cwchar_t},
-#         length(fieldname)::ULONG,
-#         rfieldnameLen::Ref{ULONG},
-#         rattrs::Ref{DWORD},
-#         rpsigblob::Ref{Ptr{COR_SIGNATURE}},
-#         rsigbloblen::Ref{ULONG},
-#         rcplusTypeFlag::Ref{DWORD},
-#         rvalue::Ref{UVCP_CONSTANT},
-#         rvalueLen::Ref{ULONG}
-#         )::HRESULT
-#     if res == S_OK
-#         name = transcode(String, fieldname[begin:rfieldnameLen[]-1])
-#         sigblob = unsafe_wrap(Vector{COR_SIGNATURE}, rpsigblob[], rsigbloblen[])
-#         return (name, sigblob, rvalue[], rcplusTypeFlag[])
-#     end
+function getFieldProps(mdi::CWMetaDataImport, fd::mdFieldDef)
+    rclass = Ref(mdTypeDef(0))
+    fieldname = Vector{Cwchar_t}(undef, DEFAULT_BUFFER_LEN)
+    rfieldnameLen = Ref(ULONG(0))
+    rattrs = Ref(DWORD(0))
+    rpsigblob = Ref(Ptr{COR_SIGNATURE}(0))
+    rsigbloblen = Ref(ULONG(0))
+    rcplusTypeFlag = Ref(DWORD(0))
+    rvalue = Ref(UVCP_CONSTANT(0))
+    rvalueLen = Ref(ULONG(0))
+    res = @ccall $(getVtbl(mdi).GetFieldProps)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        fd::mdFieldDef,
+        rclass::Ref{mdTypeDef},
+        fieldname::Ref{Cwchar_t},
+        length(fieldname)::ULONG,
+        rfieldnameLen::Ref{ULONG},
+        rattrs::Ref{DWORD},
+        rpsigblob::Ref{Ptr{COR_SIGNATURE}},
+        rsigbloblen::Ref{ULONG},
+        rcplusTypeFlag::Ref{DWORD},
+        rvalue::Ref{UVCP_CONSTANT},
+        rvalueLen::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        name = transcode(String, fieldname[begin:rfieldnameLen[]-1])
+        sigblob = unsafe_wrap(Vector{COR_SIGNATURE}, rpsigblob[], rsigbloblen[])
+        return (name, sigblob, rvalue[], rcplusTypeFlag[])
+    end
     
-#     return ("", UInt8[], DWORD(0))
-# end
+    return ("", UInt8[], DWORD(0))
+end
 
-# function enumFields(mdi, rEnum, tok, fields, rcTokens)
-#     return @ccall $(mdi.vtbl.EnumFields)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         rEnum::Ref{HCORENUM}, 
-#         tok::mdTypeDef, 
-#         fields::Ref{mdFieldDef}, 
-#         length(fields)::ULONG, 
-#         rcTokens::Ref{ULONG}
-#     )::HRESULT
-# end
+function enumFields(mdi, rEnum, tok, fields, rcTokens)
+    return @ccall $(getVtbl(mdi).EnumFields)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        rEnum::Ref{HCORENUM}, 
+        tok::mdTypeDef, 
+        fields::Ref{mdFieldDef}, 
+        length(fields)::ULONG, 
+        rcTokens::Ref{ULONG}
+    )::HRESULT
+end
 
-# function closeEnum(mdi, enum)
-#     @ccall $(mdi.vtbl.CloseEnum)(mdi.punk::Ref{COMObject{IMetaDataImport}}, enum::HCORENUM)::Nothing
-# end
+function closeEnum(mdi, enum)
+    @ccall $(getVtbl(mdi).CloseEnum)(mdi.punk::Ref{COMObject{IMetaDataImport}}, enum::HCORENUM)::Nothing
+end
 
-# function enumFields(mdi::CMetaDataImport, tok::mdTypeDef)::Vector{mdFieldDef}
-#     rEnum = Ref(HCORENUM(0))
-#     allfields = mdFieldDef[]
-#     fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
-#     rcTokens = Ref(ULONG(0))
-#     res = enumFields(mdi, rEnum, tok, fields, rcTokens)
-#     while res == S_OK
-#         append!(allfields, fields[1:rcTokens[]])
-#         res = enumFields(mdi, rEnum, tok, fields, rcTokens)
-#     end
-#     closeEnum(mdi, rEnum[])
-#     return allfields
-# end
+function enumFields(mdi::CWMetaDataImport, tok::mdTypeDef)::Vector{mdFieldDef}
+    rEnum = Ref(HCORENUM(0))
+    allfields = mdFieldDef[]
+    fields = zeros(mdFieldDef, DEFAULT_BUFFER_LEN)
+    rcTokens = Ref(ULONG(0))
+    res = enumFields(mdi, rEnum, tok, fields, rcTokens)
+    while res == S_OK
+        append!(allfields, fields[1:rcTokens[]])
+        res = enumFields(mdi, rEnum, tok, fields, rcTokens)
+    end
+    closeEnum(mdi, rEnum[])
+    return allfields
+end
 
-# enumFields(mdi::CMetaDataImport, typename::String) = enumFields(mdi, findTypeDef(mdi, typename))
+enumFields(mdi::CWMetaDataImport, typename::String) = enumFields(mdi, findTypeDef(mdi, typename))
 
-# @enum SIG_KIND begin
-#     SIG_KIND_DEFAULT = 0x0 
-#     SIG_KIND_C = 0x1 
-#     SIG_KIND_STDCALL = 0x2 
-#     SIG_KIND_THISCALL = 0x3 
-#     SIG_KIND_FASTCALL = 0x4 
-#     SIG_KIND_VARARG = 0x5 
-#     SIG_KIND_FIELD = 0x06 
-#     SIG_KIND_HASTHIS = 0x20 
-#     SIG_KIND_EXPLICITTHIS = 0x40 
-# end
+@enum SIG_KIND begin
+    SIG_KIND_DEFAULT = 0x0 
+    SIG_KIND_C = 0x1 
+    SIG_KIND_STDCALL = 0x2 
+    SIG_KIND_THISCALL = 0x3 
+    SIG_KIND_FASTCALL = 0x4 
+    SIG_KIND_VARARG = 0x5 
+    SIG_KIND_FIELD = 0x06 
+    SIG_KIND_HASTHIS = 0x20 
+    SIG_KIND_EXPLICITTHIS = 0x40 
+end
 
-# @enum ELEMENT_TYPE::Byte begin
-#     ELEMENT_TYPE_END = 0x00
-#     ELEMENT_TYPE_VOID = 0x01
-#     ELEMENT_TYPE_BOOLEAN = 0x02
-#     ELEMENT_TYPE_CHAR = 0x03
-#     ELEMENT_TYPE_I1 = 0x04
-#     ELEMENT_TYPE_U1 = 0x05
-#     ELEMENT_TYPE_I2 = 0x06
-#     ELEMENT_TYPE_U2 = 0x07
-#     ELEMENT_TYPE_I4 = 0x08
-#     ELEMENT_TYPE_U4 = 0x09
-#     ELEMENT_TYPE_I8 = 0x0a
-#     ELEMENT_TYPE_U8 = 0x0b
-#     ELEMENT_TYPE_R4 = 0x0c
-#     ELEMENT_TYPE_R8 = 0x0d
-#     ELEMENT_TYPE_STRING = 0x0e
-#     ELEMENT_TYPE_PTR = 0x0f # Followed by type
-#     ELEMENT_TYPE_BYREF = 0x10 # Followed by type
-#     ELEMENT_TYPE_VALUETYPE = 0x11 # Followed by TypeDef or TypeRef token
-#     ELEMENT_TYPE_CLASS = 0x12 # Followed by TypeDef or TypeRef token
-#     ELEMENT_TYPE_VAR = 0x13 # Generic parameter in a generic type definition, represented as number (compressed unsigned integer)
-#     ELEMENT_TYPE_ARRAY = 0x14 # type rank boundsCount bound1 … loCount lo1 …
-#     ELEMENT_TYPE_GENERICINST = 0x15 # Generic type instantiation. Followed by type type-arg-count type-1 ... type-n
-#     ELEMENT_TYPE_TYPEDBYREF = 0x16
-#     ELEMENT_TYPE_I = 0x18 # Size of a native integer, System.IntPtr
-#     ELEMENT_TYPE_U = 0x19 # Size of an unsigned native integer. System.UIntPtr
-#     # TBD
-# end
+@enum ELEMENT_TYPE::Byte begin
+    ELEMENT_TYPE_END = 0x00
+    ELEMENT_TYPE_VOID = 0x01
+    ELEMENT_TYPE_BOOLEAN = 0x02
+    ELEMENT_TYPE_CHAR = 0x03
+    ELEMENT_TYPE_I1 = 0x04
+    ELEMENT_TYPE_U1 = 0x05
+    ELEMENT_TYPE_I2 = 0x06
+    ELEMENT_TYPE_U2 = 0x07
+    ELEMENT_TYPE_I4 = 0x08
+    ELEMENT_TYPE_U4 = 0x09
+    ELEMENT_TYPE_I8 = 0x0a
+    ELEMENT_TYPE_U8 = 0x0b
+    ELEMENT_TYPE_R4 = 0x0c
+    ELEMENT_TYPE_R8 = 0x0d
+    ELEMENT_TYPE_STRING = 0x0e
+    ELEMENT_TYPE_PTR = 0x0f # Followed by type
+    ELEMENT_TYPE_BYREF = 0x10 # Followed by type
+    ELEMENT_TYPE_VALUETYPE = 0x11 # Followed by TypeDef or TypeRef token
+    ELEMENT_TYPE_CLASS = 0x12 # Followed by TypeDef or TypeRef token
+    ELEMENT_TYPE_VAR = 0x13 # Generic parameter in a generic type definition, represented as number (compressed unsigned integer)
+    ELEMENT_TYPE_ARRAY = 0x14 # type rank boundsCount bound1 … loCount lo1 …
+    ELEMENT_TYPE_GENERICINST = 0x15 # Generic type instantiation. Followed by type type-arg-count type-1 ... type-n
+    ELEMENT_TYPE_TYPEDBYREF = 0x16
+    ELEMENT_TYPE_I = 0x18 # Size of a native integer, System.IntPtr
+    ELEMENT_TYPE_U = 0x19 # Size of an unsigned native integer. System.UIntPtr
+    # TBD
+end
 
-# # Only handles single dimension array with assumed lower bound of 0
-# function decodeArrayBlob(paramblob::Vector{COR_SIGNATURE})
-#     ipb = 1
-#     type, len = uncompress(paramblob[ipb:end])
-#     ipb += len
-#     rank, len = uncompress(paramblob[ipb:end])
-#     ipb += len
-#     @assert rank == 1
-#     cbounds, len = uncompress(paramblob[ipb:end])
-#     ipb += len
-#     @assert cbounds == 1
-#     arraylen, len = uncompress(paramblob[ipb:end])
-#     return (type, len, arraylen)
-# end
+# Only handles single dimension array with assumed lower bound of 0
+function decodeArrayBlob(paramblob::Vector{COR_SIGNATURE})
+    ipb = 1
+    type, len = uncompress(paramblob[ipb:end])
+    ipb += len
+    rank, len = uncompress(paramblob[ipb:end])
+    ipb += len
+    @assert rank == 1
+    cbounds, len = uncompress(paramblob[ipb:end])
+    ipb += len
+    @assert cbounds == 1
+    arraylen, len = uncompress(paramblob[ipb:end])
+    return (type, len, arraylen)
+end
 
-# const TYPEATTR_NONE         = 0x00000000
-# const TYPEATTR_PTR          = 0x00000001
-# const TYPEATTR_VALUETYPE    = 0x00000002
-# const TYPEATTR_ARRAY        = 0x00000004
+const TYPEATTR_NONE         = 0x00000000
+const TYPEATTR_PTR          = 0x00000001
+const TYPEATTR_VALUETYPE    = 0x00000002
+const TYPEATTR_ARRAY        = 0x00000004
 
-# function paramType(paramblob::Vector{COR_SIGNATURE})
-#     len = 1
-#     et::ELEMENT_TYPE = ELEMENT_TYPE(paramblob[1])
-#     type::mdToken = mdTokenNil
-#     typeattr::UInt32 = TYPEATTR_NONE
-#     arraylen::Int = 0
+function paramType(paramblob::Vector{COR_SIGNATURE})
+    len = 1
+    et::ELEMENT_TYPE = ELEMENT_TYPE(paramblob[1])
+    type::mdToken = mdTokenNil
+    typeattr::UInt32 = TYPEATTR_NONE
+    arraylen::Int = 0
     
-#     if et == ELEMENT_TYPE_PTR
-#         typeattr |= TYPEATTR_PTR
-#         subet = ELEMENT_TYPE(paramblob[2])
-#         if subet == ELEMENT_TYPE_VALUETYPE
-#             typeattr |= TYPEATTR_VALUETYPE
-#             type, len = uncompressToken(paramblob[3:end])
-#             len += 2
-#         else
-#             type, len = uncompress(paramblob[2:end])
-#             len += 1
-#         end
-#     elseif et == ELEMENT_TYPE_VALUETYPE
-#         typeattr |= TYPEATTR_VALUETYPE
-#         type, len = uncompressToken(paramblob[2:end])
-#         len += 1
-#     elseif et == ELEMENT_TYPE_CLASS
-#         type, len = uncompressToken(paramblob[2:end])
-#         len += 1
-#     elseif et == ELEMENT_TYPE_ARRAY
-#         typeattr |= TYPEATTR_ARRAY
-#         type, len, arraylen = decodeArrayBlob(paramblob[2:end])
-#         len += 1
-#     else
-#         type = paramblob[1]
-#         len = 1
-#     end
+    if et == ELEMENT_TYPE_PTR
+        typeattr |= TYPEATTR_PTR
+        subet = ELEMENT_TYPE(paramblob[2])
+        if subet == ELEMENT_TYPE_VALUETYPE
+            typeattr |= TYPEATTR_VALUETYPE
+            type, len = uncompressToken(paramblob[3:end])
+            len += 2
+        else
+            type, len = uncompress(paramblob[2:end])
+            len += 1
+        end
+    elseif et == ELEMENT_TYPE_VALUETYPE
+        typeattr |= TYPEATTR_VALUETYPE
+        type, len = uncompressToken(paramblob[2:end])
+        len += 1
+    elseif et == ELEMENT_TYPE_CLASS
+        type, len = uncompressToken(paramblob[2:end])
+        len += 1
+    elseif et == ELEMENT_TYPE_ARRAY
+        typeattr |= TYPEATTR_ARRAY
+        type, len, arraylen = decodeArrayBlob(paramblob[2:end])
+        len += 1
+    else
+        type = paramblob[1]
+        len = 1
+    end
 
-#     return (type, len, typeattr, arraylen)
-# end
+    return (type, len, typeattr, arraylen)
+end
 
-# function methodSigblobToTypeInfos(sigblob::Vector{COR_SIGNATURE})
-#     sk::SIG_KIND = SIG_KIND(sigblob[1] & 0xF)
-#     typeattr = TYPEATTR_NONE
-#     paramCount::Int = 0
-#     types = Tuple{mdTypeDef, UInt32, Int}[]
-#     i = 2
+function methodSigblobToTypeInfos(sigblob::Vector{COR_SIGNATURE})
+    sk::SIG_KIND = SIG_KIND(sigblob[1] & 0xF)
+    typeattr = TYPEATTR_NONE
+    paramCount::Int = 0
+    types = Tuple{mdTypeDef, UInt32, Int}[]
+    i = 2
 
-#     # NB Assumes c-api
-#     paramCount, len = uncompress(sigblob[i:end])
-#     i += len
+    # NB Assumes c-api
+    paramCount, len = uncompress(sigblob[i:end])
+    i += len
 
-#     rettype, len, typeattr, arrayLen = paramType(sigblob[i:end])
-#     push!(types, (rettype, typeattr, arrayLen))
-#     i += len
+    rettype, len, typeattr, arrayLen = paramType(sigblob[i:end])
+    push!(types, (rettype, typeattr, arrayLen))
+    i += len
 
-#     # TODO loop over param count
-#     while paramCount > 0 
-#         type, len, typeattr, arrayLen = paramType(sigblob[i:end])
-#         push!(types, (type, typeattr, arrayLen))
-#         i += len
-#         paramCount -= 1
-#     end
+    # TODO loop over param count
+    while paramCount > 0 
+        type, len, typeattr, arrayLen = paramType(sigblob[i:end])
+        push!(types, (type, typeattr, arrayLen))
+        i += len
+        paramCount -= 1
+    end
 
-#     return types
-# end
+    return types
+end
 
-# function fieldSigblobToTypeInfo(sigblob::Vector{COR_SIGNATURE})
-#     if SIG_KIND(sigblob[1]) == SIG_KIND_FIELD
-#         return paramType(sigblob[2:end])
-#     end
-#     throw("bad signature")
-# end
+function fieldSigblobToTypeInfo(sigblob::Vector{COR_SIGNATURE})
+    if SIG_KIND(sigblob[1]) == SIG_KIND_FIELD
+        return paramType(sigblob[2:end])
+    end
+    throw("bad signature")
+end
 
-# function enumMembers(mdi::CMetaDataImport, tok::mdTypeDef)::Vector{mdToken}
-#     rEnum = Ref(HCORENUM(0))
-#     members = zeros(mdToken, DEFAULT_BUFFER_LEN)
-#     rcMembers = Ref(ULONG(0))
-#     res = @ccall $(mdi.vtbl.EnumMembers)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         rEnum::Ref{HCORENUM},
-#         tok::mdTypeDef,
-#         members::Ref{mdToken},
-#         length(members)::ULONG,
-#         rcMembers::Ref{ULONG}
-#         )::HRESULT
-#     if res == S_OK
-#         return members[begin:rcMembers[]]
-#     end
-#     throw(HRESULT_FAILED(res))
-# end
+function enumMembers(mdi::CWMetaDataImport, tok::mdTypeDef)::Vector{mdToken}
+    rEnum = Ref(HCORENUM(0))
+    members = zeros(mdToken, DEFAULT_BUFFER_LEN)
+    rcMembers = Ref(ULONG(0))
+    res = @ccall $(getVtbl(mdi).EnumMembers)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        rEnum::Ref{HCORENUM},
+        tok::mdTypeDef,
+        members::Ref{mdToken},
+        length(members)::ULONG,
+        rcMembers::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return members[begin:rcMembers[]]
+    end
+    throw(HRESULT_FAILED(res))
+end
 
-# function extends(mdi::CMetaDataImport, name::String, extends::String)::Bool
-#     td = findTypeDef(mdi, name)
-#     tdprops = getTypeDefProps(mdi, td)
-#     extendsname = getTypeRefName(mdi, tdprops.extends)
-#     if extendsname == extends
-#         return true
-#     end
-#     return false
-# end
+function extends(mdi::CWMetaDataImport, name::String, extends::String)::Bool
+    td = findTypeDef(mdi, name)
+    tdprops = getTypeDefProps(mdi, td)
+    extendsname = getTypeRefName(mdi, tdprops.extends)
+    if extendsname == extends
+        return true
+    end
+    return false
+end
 
-# isStruct(mdi::CMetaDataImport, name::String) = extends(mdi, name, SYSTEM_VALUETYPE_STR)
-# isStruct(mdi::CMetaDataImport, tr::mdTypeRef) = isString(mdi, getTypeRefName(mdi, tr))
-# isCallback(mdi::CMetaDataImport, name::String) = extends(mdi, name, SYSTEM_MULTICAST_DELEGATE_STR)
-# isCallback(mdi::CMetaDataImport, tr::mdTypeRef) = isCallback(mdi, getTypeRefName(mdi, tr))
+isStruct(mdi::CWMetaDataImport, name::String) = extends(mdi, name, SYSTEM_VALUETYPE_STR)
+isStruct(mdi::CWMetaDataImport, tr::mdTypeRef) = isString(mdi, getTypeRefName(mdi, tr))
+isCallback(mdi::CWMetaDataImport, name::String) = extends(mdi, name, SYSTEM_MULTICAST_DELEGATE_STR)
+isCallback(mdi::CWMetaDataImport, tr::mdTypeRef) = isCallback(mdi, getTypeRefName(mdi, tr))
 
-# function enumParams(mdi, rEnum, mdtoken, params, rcparams)
-#     return @ccall $(mdi.vtbl.EnumParams)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         rEnum::Ref{HCORENUM}, 
-#         mdtoken::mdMethodDef, 
-#         params::Ref{mdParamDef}, 
-#         length(params)::ULONG, 
-#         rcparams::Ref{ULONG}
-#     )::HRESULT
-# end
+function enumParams(mdi, rEnum, mdtoken, params, rcparams)
+    return @ccall $(getVtbl(mdi).EnumParams)(
+        mdi.punk::Ref{COMObject{IMetaDataImport}}, 
+        rEnum::Ref{HCORENUM}, 
+        mdtoken::mdMethodDef, 
+        params::Ref{mdParamDef}, 
+        length(params)::ULONG, 
+        rcparams::Ref{ULONG}
+    )::HRESULT
+end
 
-# function enumParams(mdi::CMetaDataImport, mdtoken::mdMethodDef)::Vector{mdParamDef}
-#     rEnum = Ref(HCORENUM(0))
-#     allparams = mdParamDef[]
-#     params = zeros(mdParamDef, DEFAULT_BUFFER_LEN)
-#     rcparams = Ref(ULONG(0))
-#     res = enumParams(mdi, rEnum, mdtoken, params, rcparams)
-#     # @show rcparams[]
-#     while res == S_OK
-#         append!(allparams, params[1:rcparams[]])
-#         res = enumParams(mdi, rEnum, mdtoken, params, rcparams)
-#     end
-#     closeEnum(mdi, rEnum[])
-#     return allparams
-# end
+function enumParams(mdi::CWMetaDataImport, mdtoken::mdMethodDef)::Vector{mdParamDef}
+    rEnum = Ref(HCORENUM(0))
+    allparams = mdParamDef[]
+    params = zeros(mdParamDef, DEFAULT_BUFFER_LEN)
+    rcparams = Ref(ULONG(0))
+    res = enumParams(mdi, rEnum, mdtoken, params, rcparams)
+    # @show rcparams[]
+    while res == S_OK
+        append!(allparams, params[1:rcparams[]])
+        res = enumParams(mdi, rEnum, mdtoken, params, rcparams)
+    end
+    closeEnum(mdi, rEnum[])
+    return allparams
+end

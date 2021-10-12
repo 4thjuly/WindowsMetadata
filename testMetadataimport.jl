@@ -1,7 +1,12 @@
 include("metadataimport-wrapper.jl")
 include("winmd.jl")
 
-mdi = metadataDispenser() |> metadataImport
+mdd = metadataDispenser()
+@show mdd
+
+mdi = metadataImport(mdd)
+@show mdi
+
 tdWAMApis = findTypeDef(mdi, "Windows.Win32.WindowsAndMessaging.Apis")
 mdRegClass = findMethod(mdi, tdWAMApis, "RegisterClassExW")
 @show mdRegClass
@@ -104,7 +109,7 @@ fields = enumFields(mdi, structToken)
 println()
 
 # More method stuff
-function showParams(mdi::CMetaDataImport, params::Vector{mdParamDef}, paramtypes::Vector{Tuple{mdTypeDef, UInt32, Int}})
+function showParams(mdi::CWMetaDataImport, params::Vector{mdParamDef}, paramtypes::Vector{Tuple{mdTypeDef, UInt32, Int}})
     for i = 1:length(params)
         name = getParamProps(mdi, params[i])
         type = paramtypes[i][1]

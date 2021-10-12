@@ -9,7 +9,7 @@ macro L_str(s) transcode(Cwchar_t, s) end
 const Typemap = Dict{String, DataType}
 
 struct Winmd
-    mdi::CMetaDataImport
+    mdi::CWMetaDataImport
     prefix::String
     types::Typemap
 end
@@ -157,7 +157,7 @@ function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Rege
     return Base.invokelatest(structtype, jinitvals...)
 end
 
-function paramNamesAndAttrs(mdi::CMetaDataImport, params::Vector{mdParamDef})
+function paramNamesAndAttrs(mdi::CWMetaDataImport, params::Vector{mdParamDef})
     results = Tuple{String, DWORD}[]
     for param in params
         name, attr = getParamProps(mdi, param)
