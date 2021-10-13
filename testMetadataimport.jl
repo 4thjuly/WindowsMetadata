@@ -12,13 +12,13 @@ mdRegClass = findMethod(mdi, tdWAMApis, "RegisterClassExW")
 @show mdRegClass
 println()
 
-# (moduleref, importname) = getPInvokeMap(mdi, mdRegClass)
-# @show importname
-# println()
+(moduleref, importname) = getPInvokeMap(mdi, mdRegClass)
+@show importname
+println()
 
-# moduleName = getModuleRefProps(mdi, moduleref)
-# @show moduleName
-# println()
+moduleName = getModuleRefProps(mdi, moduleref)
+@show moduleName
+println()
 
 # paramDef = getParamForMethodIndex(mdi, mdRegClass, 1) 
 # paramName = getParamProps(mdi, paramDef)

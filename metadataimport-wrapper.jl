@@ -100,11 +100,11 @@ struct PVtbl{T}
 end
 const COMObject{T} = Ptr{PVtbl{T}}
 
-struct COMWrapper{T}
-    punk::COMObject{T}
-end
+# struct COMWrapper{T}
+#     punk::COMObject{T}
+# end
 
-getVtbl(cw::COMWrapper{T}) where T = unsafe_load(unsafe_load(cw.punk).value)
+# getVtbl(cw::COMWrapper{T}) where T = unsafe_load(unsafe_load(cw.punk).value)
 getVtbl(cobj::COMObject{T}) where T = unsafe_load(unsafe_load(cobj).value)
 
 struct IUnknownVtbl
@@ -125,7 +125,7 @@ struct IMetaDataDispenserVtbl
     OpenScope::Ptr{Cvoid}
     OpenScopeOnMemmory::Ptr{Cvoid}
 end
-const CWMetaDataDispenser = COMWrapper{IMetaDataDispenserVtbl}
+# const CWMetaDataDispenser = COMWrapper{IMetaDataDispenserVtbl}
 const CMetaDataDispenser = COMObject{IMetaDataDispenserVtbl}
 
 function metadataDispenser()
@@ -208,7 +208,7 @@ struct IMetaDataImportVtbl
     IsGlobal::Ptr{Cvoid} 
 end
 
-const CWMetaDataImport = COMWrapper{IMetaDataImportVtbl}
+# const CWMetaDataImport = COMWrapper{IMetaDataImportVtbl}
 const CMetaDataImport = COMObject{IMetaDataImportVtbl}
 
 function metadataImport(mdd::CMetaDataDispenser)
@@ -260,41 +260,41 @@ function findMethod(mdi::CMetaDataImport, td::mdTypeDef, methodName::String)
     return mdTokenNil
 end
 
-# function getPInvokeMap(mdi::CWMetaDataImport, md::mdMethodDef)
-#     rflags = Ref(DWORD(0))
-#     importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rnameLen = Ref(ULONG(0))
-#     rmoduleRef = Ref(mdModuleRef(0))
-#     res = @ccall $(getVtbl(mdi).GetPinvokeMap)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         md::mdMethodDef, 
-#         rflags::Ref{DWORD},
-#         importname::Ref{Cwchar_t},
-#         length(importname)::ULONG, 
-#         rnameLen::Ref{ULONG}, 
-#         rmoduleRef::Ref{mdModuleRef}
-#         )::HRESULT
-#     if res == S_OK
-#         return (rmoduleRef[], transcode(String, importname[begin:rnameLen[]-1]))
-#     end
-#     return (mdTokenNil, "")
-# end
+function getPInvokeMap(mdi::CMetaDataImport, md::mdMethodDef)
+    rflags = Ref(DWORD(0))
+    importname = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rnameLen = Ref(ULONG(0))
+    rmoduleRef = Ref(mdModuleRef(0))
+    res = @ccall $(getVtbl(mdi).GetPinvokeMap)(
+        mdi::CMetaDataImport, 
+        md::mdMethodDef, 
+        rflags::Ref{DWORD},
+        importname::Ref{Cwchar_t},
+        length(importname)::ULONG, 
+        rnameLen::Ref{ULONG}, 
+        rmoduleRef::Ref{mdModuleRef}
+        )::HRESULT
+    if res == S_OK
+        return (rmoduleRef[], transcode(String, importname[begin:rnameLen[]-1]))
+    end
+    return (mdTokenNil, "")
+end
 
-# function getModuleRefProps(mdi::CWMetaDataImport, mr::mdModuleRef)
-#     modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
-#     rmodulanameLen = Ref(ULONG(0))
-#     res = @ccall $(getVtbl(mdi).GetModuleRefProps)(
-#         mdi.punk::Ref{COMObject{IMetaDataImport}}, 
-#         mr::mdModuleRef,
-#         modulename::Ref{Cwchar_t},
-#         length(modulename)::ULONG,
-#         rmodulanameLen::Ref{ULONG}
-#         )::HRESULT
-#     if res == S_OK
-#         return transcode(String, modulename[begin:rmodulanameLen[]-1])
-#     end
-#     return ""
-# end
+function getModuleRefProps(mdi::CMetaDataImport, mr::mdModuleRef)
+    modulename = zeros(Cwchar_t, DEFAULT_BUFFER_LEN)
+    rmodulanameLen = Ref(ULONG(0))
+    res = @ccall $(getVtbl(mdi).GetModuleRefProps)(
+        mdi::CMetaDataImport, 
+        mr::mdModuleRef,
+        modulename::Ref{Cwchar_t},
+        length(modulename)::ULONG,
+        rmodulanameLen::Ref{ULONG}
+        )::HRESULT
+    if res == S_OK
+        return transcode(String, modulename[begin:rmodulanameLen[]-1])
+    end
+    return ""
+end
 
 # function getParamForMethodIndex(mdi::CWMetaDataImport, md::mdMethodDef, i::Int)
 #     rparamDef = Ref(mdParamDef(0))
