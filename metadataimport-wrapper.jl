@@ -95,6 +95,16 @@ const CLSID_CorMetaDataDispenser = guid"E5CB7A31-7512-11d2-89CE-0080C792E5D8"
 const IID_IMetaDataDispenser = guid"809C652E-7396-11D2-9771-00A0C9B4D50C"
 const IID_IMetaDataImport = guid"7DAC8207-D3AE-4C75-9B67-92801A497D44"
 
+struct COMObject{T}
+    pvtbl::Ptr{T}
+end
+
+struct COMWrapper{T}
+    punk::Ptr{COMObject{T}}
+end
+
+getVtbl(cw::COMWrapper{T}) where T = unsafe_load(unsafe_load(cw.punk).pvtbl)
+
 struct IUnknown
     QueryInterface::Ptr{Cvoid}
     AddRef::Ptr{Cvoid}
@@ -107,32 +117,24 @@ end
 #     ...
 # end
 
-struct IMetaDataDispenser
+struct IMetaDataDispenserVtbl
     iUnknown::IUnknown
     DefineScope::Ptr{Cvoid}
     OpenScope::Ptr{Cvoid}
     OpenScopeOnMemmory::Ptr{Cvoid}
 end
+const CWMetaDataDispenser = COMWrapper{IMetaDataDispenserVtbl}
 
-struct COMObject{T}
-    pvtbl::Ptr{T}
-end
-
-struct COMWrapper{T}
-    punk::Ptr{COMObject{T}}
-end
-
-getVtbl(cw::COMWrapper{T}) where T = unsafe_load(unsafe_load(cw.punk).pvtbl)
 
 function metadataDispenser()
-    rpmdd = Ref(Ptr{COMObject{IMetaDataDispenser}}(C_NULL))
+    rpmdd = Ref(Ptr{COMObject{IMetaDataDispenserVtbl}}(C_NULL))
     res = @ccall "Rometadata".MetaDataGetDispenser( 
         Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
         Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, 
-        rpmdd::Ref{Ptr{COMObject{IMetaDataDispenser}}}
+        rpmdd::Ref{Ptr{COMObject{IMetaDataDispenserVtbl}}}
         )::HRESULT
     if res == S_OK
-        return COMWrapper{IMetaDataDispenser}(rpmdd[])
+        return COMWrapper{IMetaDataDispenserVtbl}(rpmdd[])
     end
     throw(HRESULT_FAILED(res))
 end
@@ -204,13 +206,12 @@ struct IMetaDataImport
 end
 
 const CWMetaDataImport = COMWrapper{IMetaDataImport}
-const CWMetaDataDispenser = COMWrapper{IMetaDataDispenser}
 
 function metadataImport(mdd::CWMetaDataDispenser)
     vtbl = getVtbl(mdd)
     rpmdi = Ref(Ptr{COMObject{IMetaDataImport}}(C_NULL))
     res = @ccall $(vtbl.OpenScope)(
-        mdd.punk::Ref{COMObject{IMetaDataDispenser}}, 
+        mdd.punk::Ref{COMObject{IMetaDataDispenserVtbl}}, 
         "Windows.Win32.winmd"::Cwstring,
         CorOpenFlags_ofRead::Cuint, 
         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
