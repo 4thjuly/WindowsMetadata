@@ -141,7 +141,7 @@ function metadataDispenser()
     throw(HRESULT_FAILED(res))
 end
 
-struct IMetaDataImport
+struct IMetaDataImportVtbl
     iUnknown::IUnknownVtbl
     CloseEnum::Ptr{Cvoid}         
     CountEnum::Ptr{Cvoid} 
@@ -207,20 +207,21 @@ struct IMetaDataImport
     IsGlobal::Ptr{Cvoid} 
 end
 
-const CWMetaDataImport = COMWrapper{IMetaDataImport}
+const CWMetaDataImport = COMWrapper{IMetaDataImportVtbl}
+const CMetaDataImport = COMObject{IMetaDataImportVtbl}
 
 function metadataImport(mdd::CWMetaDataDispenser)
     vtbl = getVtbl(mdd)
-    rpmdi = Ref(Ptr{PVtbl{IMetaDataImport}}(C_NULL))
+    rpmdi = Ref(Ptr{PVtbl{IMetaDataImportVtbl}}(C_NULL))
     res = @ccall $(vtbl.OpenScope)(
         mdd.punk::Ref{PVtbl{IMetaDataDispenserVtbl}}, 
         "Windows.Win32.winmd"::Cwstring,
         CorOpenFlags_ofRead::Cuint, 
         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
-        rpmdi::Ref{Ptr{PVtbl{IMetaDataImport}}}
+        rpmdi::Ref{Ptr{PVtbl{IMetaDataImportVtbl}}}
         )::HRESULT
     if res == S_OK
-        return COMWrapper{IMetaDataImport}(rpmdi[])
+        return COMWrapper{IMetaDataImportVtbl}(rpmdi[])
     end
     throw(HRESULT_FAILED(res))
 end
@@ -229,7 +230,7 @@ function findTypeDef(mdi::CWMetaDataImport, name::String)::mdToken
     vtbl = getVtbl(mdi)
     rStructToken = Ref(mdToken(0))
     res = @ccall $(vtbl.FindTypeDefByName)(
-        mdi.punk::Ref{PVtbl{IMetaDataImport}}, 
+        mdi.punk::Ref{PVtbl{IMetaDataImportVtbl}}, 
         name::Cwstring, 
         mdTokenNil::mdToken, 
         rStructToken::Ref{mdToken}
@@ -244,7 +245,7 @@ function findMethod(mdi::CWMetaDataImport, td::mdTypeDef, methodName::String)
     vtbl = getVtbl(mdi)
     rmethodDef = Ref(mdToken(0))
     res = @ccall $(vtbl.FindMethod)(
-        mdi.punk::Ref{PVtbl{IMetaDataImport}}, 
+        mdi.punk::Ref{PVtbl{IMetaDataImportVtbl}}, 
         td::mdTypeDef,
         methodName::Cwstring, 
         C_NULL::Ref{Cvoid}, 
