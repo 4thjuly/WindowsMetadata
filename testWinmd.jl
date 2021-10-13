@@ -12,14 +12,16 @@ RGB(r::UInt8, g::UInt8, b::UInt8)::UInt32 = (UInt32(r) << 16 | UInt32(g) << 8 | 
 # Support type aliases?
 winmd = Winmd("Windows.Win32")
 
-# Defines
-const WSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WS_(?!._))", "WS")
-const CSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CS_(?!._))", "CS")
-const CWS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CW_(?!._))", "CW")
-const IDIS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDI_(?!._))", "IDI")
-const IDCS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDC_(?!._))", "IDC")
-const WMS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WM_(?!._))", "WM")
-const COLORS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(COLOR_(?!._))", "COLOR")
+# Defines - these are kinda slow
+@time begin
+    const WSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WS_(?!._))", "WS")
+    const CSS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CS_(?!._))", "CS")
+    const CWS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(CW_(?!._))", "CW")
+    const IDIS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDI_(?!._))", "IDI")
+    const IDCS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(IDC_(?!._))", "IDC")
+    const WMS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(WM_(?!._))", "WM")
+    const COLORS = convertClassFieldsToJulia(winmd, "SystemServices.Apis", r"^(COLOR_(?!._))", "COLOR")
+end
 
 # TODO Convert delegates to callbacks, until then do this by hand
 macro wndproc(wp) return :(@cfunction($wp, LRESULT, (HWND, UInt32, WPARAM, LPARAM))) end
@@ -42,7 +44,7 @@ convertTypeToJulia(winmd, "WindowsAndMessaging", "WNDCLASSEXW")
 # Flush workingset after startup to make leak finding easier
 const IDT_FLUSH_WORKINGSET = 1
 
-function myWndProc( hwnd::HWND, uMsg::UInt32, wParam::WPARAM, lParam::LPARAM)::LRESULT
+function myWndProc(hwnd::HWND, uMsg::UInt32, wParam::WPARAM, lParam::LPARAM)::LRESULT
     if uMsg == WMS.WM_CREATE
         println("WM_CREATE")
         SetTimer(hwnd, UInt64(IDT_FLUSH_WORKINGSET), UInt32(1000), C_NULL)

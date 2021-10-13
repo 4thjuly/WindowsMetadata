@@ -217,7 +217,7 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
     for i = 2:length(namesAndAttrs)
         (name, attr) = namesAndAttrs[i]
         jtype = jtypes[i]
-        if attr & CorParamAttr_pdOut == CorParamAttr_pdOut
+        if attr & CORPARAMATTR_PDOUT == CORPARAMATTR_PDOUT
             jtype = supertype(jtype)
         end
 

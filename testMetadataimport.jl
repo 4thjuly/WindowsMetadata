@@ -1,7 +1,12 @@
 include("metadataimport-wrapper.jl")
 include("winmd.jl")
 
-mdi = metadataDispenser() |> metadataImport
+mdd = metadataDispenser()
+@show mdd
+
+mdi = metadataImport(mdd)
+@show mdi
+
 tdWAMApis = findTypeDef(mdi, "Windows.Win32.WindowsAndMessaging.Apis")
 mdRegClass = findMethod(mdi, tdWAMApis, "RegisterClassExW")
 @show mdRegClass
