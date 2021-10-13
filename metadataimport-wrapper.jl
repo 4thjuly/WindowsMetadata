@@ -98,9 +98,10 @@ const IID_IMetaDataImport = guid"7DAC8207-D3AE-4C75-9B67-92801A497D44"
 struct PVtbl{T}
     value::Ptr{T}
 end
+const COMObject{T} = Ptr{PVtbl{T}}
 
 struct COMWrapper{T}
-    punk::Ptr{PVtbl{T}}
+    punk::COMObject{T}
 end
 
 getVtbl(cw::COMWrapper{T}) where T = unsafe_load(unsafe_load(cw.punk).value)
