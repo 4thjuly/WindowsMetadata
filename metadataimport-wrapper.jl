@@ -216,25 +216,19 @@ function metadataImport(mdd::CMetaDataDispenser)
         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
         rpmdi::Ref{CMetaDataImport}
         )::HRESULT
-    if res == S_OK
-        return CMetaDataImport(rpmdi[])
-    end
-    throw(HRESULT_FAILED(res))
+    return rpmdi[]
 end
 
 function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
     vtbl = getVtbl(mdi)
-    rStructToken = Ref(mdToken(0))
+    rtypedef = Ref(mdToken(0))
     res = @ccall $(vtbl.FindTypeDefByName)(
         mdi::CMetaDataImport, 
         name::Cwstring, 
         mdTokenNil::mdToken, 
-        rStructToken::Ref{mdToken}
+        rtypedef::Ref{mdToken}
         )::HRESULT
-    if res == S_OK
-        return rStructToken[]
-    end
-    return mdTokenNil
+    return rtypedef[]
 end
 
 function findMethod(mdi::CMetaDataImport, td::mdTypeDef, methodName::String)
@@ -248,10 +242,7 @@ function findMethod(mdi::CMetaDataImport, td::mdTypeDef, methodName::String)
         0::ULONG, 
         rmethodDef::Ref{mdToken}
         )::HRESULT 
-    if res == S_OK
-        return rmethodDef[]
-    end
-    return mdTokenNil
+    return rmethodDef[]
 end
 
 function getPInvokeMap(mdi::CMetaDataImport, md::mdMethodDef)
@@ -298,10 +289,7 @@ function getParamForMethodIndex(mdi::CMetaDataImport, md::mdMethodDef, i::Int)
         ULONG(i)::ULONG,
         rparamDef::Ref{mdParamDef}
     )::HRESULT
-    if res == S_OK
-        return rparamDef[]
-    end
-    return mdTokenNil
+    return rparamDef[]
 end
 
 const CORPARAMATTR_PDIN                        =   0x00000001
@@ -383,7 +371,7 @@ function uncompress(sig::AbstractVector{COR_SIGNATURE})
     else
         error("Bad signature")
     end
-    return (val, len)
+    return val, len
 end
 
 function uncompressToken(sig::AbstractVector{COR_SIGNATURE})
@@ -437,17 +425,14 @@ function getName(mdi::CMetaDataImport, mdt::mdToken)::String
 end
 
 function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
-    rStructToken = Ref(mdToken(0))
+    rtypedef = Ref(mdToken(0))
     res = @ccall $(getVtbl(mdi).FindTypeDefByName)(
         mdi::CMetaDataImport, 
         name::Cwstring, 
         mdTokenNil::mdToken, 
-        rStructToken::Ref{mdToken}
+        rtypedef::Ref{mdToken}
         )::HRESULT
-    if res == S_OK
-        return rStructToken[]
-    end
-    return mdTokenNil
+    return rtypedef[]
 end
 
 function getTypeDefProps(mdi::CMetaDataImport, td::mdTypeDef)
@@ -517,7 +502,7 @@ function enumFields(mdi, rEnum, tok, fields, rcTokens)
         fields::Ref{mdFieldDef}, 
         length(fields)::ULONG, 
         rcTokens::Ref{ULONG}
-    )::HRESULT
+        )::HRESULT
 end
 
 function closeEnum(mdi, enum)
@@ -593,7 +578,7 @@ function decodeArrayBlob(paramblob::Vector{COR_SIGNATURE})
     ipb += len
     @assert cbounds == 1
     arraylen, len = uncompress(paramblob[ipb:end])
-    return (type, len, arraylen)
+    return type, len, arraylen
 end
 
 const TYPEATTR_NONE         = 0x00000000
@@ -635,7 +620,7 @@ function paramType(paramblob::Vector{COR_SIGNATURE})
         len = 1
     end
 
-    return (type, len, typeattr, arraylen)
+    return type, len, typeattr, arraylen
 end
 
 function methodSigblobToTypeInfos(sigblob::Vector{COR_SIGNATURE})
@@ -712,7 +697,7 @@ function enumParams(mdi, rEnum, mdtoken, params, rcparams)
         params::Ref{mdParamDef}, 
         length(params)::ULONG, 
         rcparams::Ref{ULONG}
-    )::HRESULT
+        )::HRESULT
 end
 
 function enumParams(mdi::CMetaDataImport, mdtoken::mdMethodDef)::Vector{mdParamDef}
