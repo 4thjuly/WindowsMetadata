@@ -125,14 +125,15 @@ struct IMetaDataDispenserVtbl
     OpenScopeOnMemmory::Ptr{Cvoid}
 end
 const CWMetaDataDispenser = COMWrapper{IMetaDataDispenserVtbl}
+const CMetaDataDispenser = COMObject{IMetaDataDispenserVtbl}
 
 
 function metadataDispenser()
-    rpmdd = Ref(Ptr{PVtbl{IMetaDataDispenserVtbl}}(C_NULL))
+    rpmdd = Ref(CMetaDataDispenser(C_NULL))
     res = @ccall "Rometadata".MetaDataGetDispenser( 
         Ref(CLSID_CorMetaDataDispenser)::Ptr{Cvoid}, 
         Ref(IID_IMetaDataDispenser)::Ptr{Cvoid}, 
-        rpmdd::Ref{Ptr{PVtbl{IMetaDataDispenserVtbl}}}
+        rpmdd::Ref{CMetaDataDispenser}
         )::HRESULT
     if res == S_OK
         return COMWrapper{IMetaDataDispenserVtbl}(rpmdd[])
