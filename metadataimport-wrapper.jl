@@ -100,11 +100,6 @@ struct PVtbl{T}
 end
 const COMObject{T} = Ptr{PVtbl{T}}
 
-# struct COMWrapper{T}
-#     punk::COMObject{T}
-# end
-
-# getVtbl(cw::COMWrapper{T}) where T = unsafe_load(unsafe_load(cw.punk).value)
 getVtbl(cobj::COMObject{T}) where T = unsafe_load(unsafe_load(cobj).value)
 
 struct IUnknownVtbl
@@ -125,7 +120,6 @@ struct IMetaDataDispenserVtbl
     OpenScope::Ptr{Cvoid}
     OpenScopeOnMemmory::Ptr{Cvoid}
 end
-# const CWMetaDataDispenser = COMWrapper{IMetaDataDispenserVtbl}
 const CMetaDataDispenser = COMObject{IMetaDataDispenserVtbl}
 
 function metadataDispenser()
@@ -136,7 +130,6 @@ function metadataDispenser()
         rpmdd::Ref{CMetaDataDispenser}
         )::HRESULT
     if res == S_OK
-        # return COMWrapper{IMetaDataDispenserVtbl}(rpmdd[])
         return rpmdd[]
     end
     throw(HRESULT_FAILED(res))
@@ -208,7 +201,6 @@ struct IMetaDataImportVtbl
     IsGlobal::Ptr{Cvoid} 
 end
 
-# const CWMetaDataImport = COMWrapper{IMetaDataImportVtbl}
 const CMetaDataImport = COMObject{IMetaDataImportVtbl}
 
 function metadataImport(mdd::CMetaDataDispenser)
@@ -222,7 +214,6 @@ function metadataImport(mdd::CMetaDataDispenser)
         rpmdi::Ref{CMetaDataImport}
         )::HRESULT
     if res == S_OK
-        # return COMWrapper{IMetaDataImportVtbl}(rpmdi[])
         return CMetaDataImport(rpmdi[])
     end
     throw(HRESULT_FAILED(res))
