@@ -4,7 +4,7 @@ import Base.@kwdef
 
 const DEFAULT_BUFFER_LEN = 64*1024
 const S_OK = 0x00000000
-const CorOpenFlags_ofRead = 0x00000000
+const COROPENFLAGS_OFREAD = 0x00000000
 
 const SYSTEM_VALUETYPE_STR = "System.ValueType"
 const SYSTEM_MULTICAST_DELEGATE_STR = "System.MulticastDelegate"
@@ -203,13 +203,16 @@ end
 
 const CMetaDataImport = COMObject{IMetaDataImportVtbl}
 
+# TODO comcall
+#   eg @comcall OpenScope(mdd::CMetaDataDispenser, "Windows.Win32.winmd"::Cwstring, COROPENFLAGS_OFREAD::Cuint, Ref(IID_IMetaDataImport)::Ptr{Cvoid}, rpmdi::Ref{CMetaDataImport})::HRESULT
+
 function metadataImport(mdd::CMetaDataDispenser)
     vtbl = getVtbl(mdd)
     rpmdi = Ref(CMetaDataImport(C_NULL))
     res = @ccall $(vtbl.OpenScope)(
         mdd::CMetaDataDispenser, 
         "Windows.Win32.winmd"::Cwstring,
-        CorOpenFlags_ofRead::Cuint, 
+        COROPENFLAGS_OFREAD::Cuint, 
         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
         rpmdi::Ref{CMetaDataImport}
         )::HRESULT
