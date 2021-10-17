@@ -216,6 +216,7 @@ function metadataImport(mdd::CMetaDataDispenser)
         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
         rpmdi::Ref{CMetaDataImport}
         )::HRESULT
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
     return rpmdi[]
 end
 
@@ -228,6 +229,7 @@ function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
         mdTokenNil::mdToken, 
         rtypedef::Ref{mdToken}
         )::HRESULT
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
     return rtypedef[]
 end
 
@@ -242,6 +244,7 @@ function findMethod(mdi::CMetaDataImport, td::mdTypeDef, methodName::String)
         0::ULONG, 
         rmethodDef::Ref{mdToken}
         )::HRESULT 
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
     return rmethodDef[]
 end
 
@@ -259,10 +262,8 @@ function getPInvokeMap(mdi::CMetaDataImport, md::mdMethodDef)
         rnameLen::Ref{ULONG}, 
         rmoduleRef::Ref{mdModuleRef}
         )::HRESULT
-    if res == S_OK
-        return (rmoduleRef[], transcode(String, importname[begin:rnameLen[]-1]))
-    end
-    return (mdTokenNil, "")
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
+    return (rmoduleRef[], transcode(String, importname[begin:rnameLen[]-1]))
 end
 
 function getModuleRefProps(mdi::CMetaDataImport, mr::mdModuleRef)
@@ -275,10 +276,8 @@ function getModuleRefProps(mdi::CMetaDataImport, mr::mdModuleRef)
         length(modulename)::ULONG,
         rmodulanameLen::Ref{ULONG}
         )::HRESULT
-    if res == S_OK
-        return transcode(String, modulename[begin:rmodulanameLen[]-1])
-    end
-    return ""
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
+    return transcode(String, modulename[begin:rmodulanameLen[]-1])
 end
 
 function getParamForMethodIndex(mdi::CMetaDataImport, md::mdMethodDef, i::Int)
@@ -289,6 +288,7 @@ function getParamForMethodIndex(mdi::CMetaDataImport, md::mdMethodDef, i::Int)
         ULONG(i)::ULONG,
         rparamDef::Ref{mdParamDef}
     )::HRESULT
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
     return rparamDef[]
 end
 
@@ -322,10 +322,8 @@ function getParamProps(mdi::CMetaDataImport, paramDef::mdParamDef)
         rpvalue::Ptr{Cvoid},
         rcchValue::Ptr{ULONG}
         )::HRESULT
-    if res == S_OK
-        return transcode(String, paramName[begin:rparamNameLen[]-1]), rattr[]
-    end
-    return "", 0
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
+    return transcode(String, paramName[begin:rparamNameLen[]-1]), rattr[]
 end
 
 function getMethodProps(mdi::CMetaDataImport, methodDef::mdMethodDef)
@@ -350,10 +348,8 @@ function getMethodProps(mdi::CMetaDataImport, methodDef::mdMethodDef)
         rrva::Ref{ULONG},
         rflags::Ref{DWORD}
         )::HRESULT
-    if res == S_OK
-        return unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
-    end
-    throw(HRESULT_FAILED(res))
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
+    return unsafe_wrap(Vector{COR_SIGNATURE}, Ptr{UInt8}(rpsig[]), rsigLen[])
 end
 
 function uncompress(sig::AbstractVector{COR_SIGNATURE})
@@ -407,10 +403,8 @@ function getTypeRefName(mdi::CMetaDataImport, tr::mdTypeRef)::String
         length(name)::ULONG,
         rnameLen::Ref{ULONG}
         )::HRESULT
-    if res == S_OK
-        return transcode(String, name[begin:rnameLen[]-1])
-    end
-    return ""
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
+    return transcode(String, name[begin:rnameLen[]-1])
 end
 
 function getName(mdi::CMetaDataImport, mdt::mdToken)::String
@@ -432,6 +426,7 @@ function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
         mdTokenNil::mdToken, 
         rtypedef::Ref{mdToken}
         )::HRESULT
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
     return rtypedef[]
 end
 
@@ -449,11 +444,8 @@ function getTypeDefProps(mdi::CMetaDataImport, td::mdTypeDef)
         rflags::Ref{DWORD},
         rextends::Ref{mdToken}
         )::HRESULT
-    if res == S_OK
-        return (name=transcode(String, name[begin:rnameLen[]-1]), extends=rextends[], flags=rflags[])
-    end
-    # @show td
-    throw(HRESULT_FAILED(res))
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
+    return (name=transcode(String, name[begin:rnameLen[]-1]), extends=rextends[], flags=rflags[])
 end
 
 function fieldValue(jtype::DataType, pval::UVCP_CONSTANT)
@@ -485,13 +477,10 @@ function getFieldProps(mdi::CMetaDataImport, fd::mdFieldDef)
         rvalue::Ref{UVCP_CONSTANT},
         rvalueLen::Ref{ULONG}
         )::HRESULT
-    if res == S_OK
-        name = transcode(String, fieldname[begin:rfieldnameLen[]-1])
-        sigblob = unsafe_wrap(Vector{COR_SIGNATURE}, rpsigblob[], rsigbloblen[])
-        return (name, sigblob, rvalue[], rcplusTypeFlag[])
-    end
-    
-    return ("", UInt8[], DWORD(0))
+    if res != S_OK throw(HRESULT_FAILED(res)) end 
+    name = transcode(String, fieldname[begin:rfieldnameLen[]-1])
+    sigblob = unsafe_wrap(Vector{COR_SIGNATURE}, rpsigblob[], rsigbloblen[])
+    return (name, sigblob, rvalue[], rcplusTypeFlag[])
 end
 
 function enumFields(mdi, rEnum, tok, fields, rcTokens)

@@ -216,6 +216,7 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
     # @show methodname
     mdi = winmd.mdi
     mdgmh = findMethod(mdi, mdclass, methodname)
+    # @show mdgmh methodname
     mref, importname = getPInvokeMap(mdi, mdgmh)
     modulename = getModuleRefProps(mdi, mref)
     sigblob = getMethodProps(mdi, mdgmh)
