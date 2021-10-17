@@ -157,6 +157,24 @@ function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Rege
     return Base.invokelatest(structtype, jinitvals...)
 end
 
+function createConstExp(name::String, jfield::Type, val::Any)
+    exp = :(const $(Symbol(name)) = $jfield($val))
+end
+
+function convertClassFieldsToJuliaConsts(winmd::Winmd, classname::String, filter::Regex)
+    mdi = winmd.mdi
+    fields = enumFields(mdi, "$(winmd.prefix).$classname")
+    for field in fields
+        name, sigblob, pval = getFieldProps(mdi, field)
+        if occursin(filter, name)
+            jfield = convertTypeToJulia(winmd, sigblob)
+            val = fieldValue(jfield, pval)
+            createConstExp(name, jfield, val) |> eval
+        end
+    end
+    return nothing
+end
+
 function paramNamesAndAttrs(mdi::CMetaDataImport, params::Vector{mdParamDef})
     results = Tuple{String, DWORD}[]
     for param in params
