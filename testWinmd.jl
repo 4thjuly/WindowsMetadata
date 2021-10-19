@@ -9,32 +9,21 @@ RGB(r::UInt8, g::UInt8, b::UInt8)::UInt32 = (UInt32(r) << 16 | UInt32(g) << 8 | 
 # Support type aliases?
 winmd = Winmd("Windows.Win32")
 
-# Defines - these are kinda slow
 @time begin
-    convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", r"^(WS_(?!._))")
-    convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", r"^(CS_(?!._))")
-    convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", r"^(CW_(?!._))")
-    convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", r"^(IDI_(?!._))")
-    convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", r"^(IDC_(?!._))")
-    convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", r"^(WM_(?!._))")
-    convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", r"^(COLOR_(?!._))")
-end
+# Defines - these are kinda slow so allow regex filters
+convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", [ r"^(WS_(?!._))", r"^(CS_(?!._))", r"^(CW_(?!._))", r"^(IDI_(?!._))", r"^(IDC_(?!._))", r"^(WM_(?!._))", r"^(COLOR_(?!._))", r"^(SW_(?!._))"])
 
 # TODO Convert delegates to callbacks, until then do this by hand
+convertTypeToJulia(winmd, "WindowsAndMessaging", ["HWND", "WPARAM", "LPARAM"])
+convertTypeToJulia(winmd, "SystemServices", "LRESULT")
 macro wndproc(wp) return :(@cfunction($wp, LRESULT, (HWND, UInt32, WPARAM, LPARAM))) end
 
-convertFunctionToJulia(winmd, "SystemServices.Apis", "GetModuleHandleExW")
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "PostQuitMessage")
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DefWindowProcW")
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "SetTimer")
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "KillTimer")
-convertFunctionToJulia(winmd, "Gdi.Apis", "BeginPaint")
-convertFunctionToJulia(winmd, "Gdi.Apis", "CreateSolidBrush")
-convertFunctionToJulia(winmd, "Gdi.Apis", "FillRect")
-convertFunctionToJulia(winmd, "Gdi.Apis", "DeleteObject")
-convertFunctionToJulia(winmd, "Gdi.Apis", "EndPaint")
-convertFunctionToJulia(winmd, "SystemServices.Apis", "SetProcessWorkingSetSize")
-convertFunctionToJulia(winmd, "SystemServices.Apis", "GetCurrentProcess")
+# Will also convert parameter types as needed
+convertFunctionToJulia(winmd, "SystemServices.Apis", ["GetModuleHandleExW", "SetProcessWorkingSetSize", "GetCurrentProcess"])
+convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", ["PostQuitMessage", "DefWindowProcW", "SetTimer", "KillTimer", "RegisterClassExW", "GetMessageW", "TranslateMessage", "DispatchMessageW", "CreateWindowExW", "ShowWindow"])
+convertFunctionToJulia(winmd, "Gdi.Apis", ["BeginPaint", "CreateSolidBrush", "FillRect", "DeleteObject", "EndPaint", "UpdateWindow"])
+convertFunctionToJulia(winmd, "MenusAndResources.Apis", ["LoadIconW", "LoadCursorW"])
+end
 
 # Flush workingset after startup to make leak finding easier
 const IDT_FLUSH_WORKINGSET = 1
@@ -66,21 +55,17 @@ function myWndProc(hwnd::HWND, uMsg::UInt32, wParam::WPARAM, lParam::LPARAM)::LR
     return DefWindowProcW(hwnd, uMsg, wParam, lParam)
 end
 
-convertTypeToJulia(winmd, "SystemServices", "HINSTANCE")
-rmod = Ref(Ptr{Cvoid}(0))
+rmod = Ref(C_NULL)
 @show GetModuleHandleExW(UInt32(0), Ptr{UInt16}(0), rmod)
 hinst = HINSTANCE(rmod[])
 @show hinst
 
 const HINST_NULL = HINSTANCE(0)
-convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadIconW")
 hicon = LoadIconW(HINST_NULL, Ptr{UInt16}(UInt(IDI_INFORMATION)))
 @show hicon
-convertFunctionToJulia(winmd, "MenusAndResources.Apis", "LoadCursorW")
 hcursor = LoadCursorW(HINST_NULL, Ptr{UInt16}(UInt(IDC_ARROW)))
 @show hcursor
 
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "RegisterClassExW")
 classname = L"Julia Window Class"
 # TODO Support string conversion in a constructor 
 # TODO Support zero-init'd structs
@@ -102,7 +87,6 @@ wc = WNDCLASSEXW(
 class = RegisterClassExW(Ref(wc))
 @show class
 
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "CreateWindowExW")
 windowtitle = L"Julia Win32 App"
 hwnd = CreateWindowExW(
     UInt32(0), 
@@ -119,13 +103,8 @@ hwnd = CreateWindowExW(
     C_NULL)
 @show hwnd
 
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "ShowWindow")
-convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", r"^(SW_(?!._))")
 ShowWindow(hwnd, SW_SHOWNORMAL)
-
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "GetMessageW")
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "TranslateMessage")
-convertFunctionToJulia(winmd, "WindowsAndMessaging.Apis", "DispatchMessageW")
+UpdateWindow(hwnd)
 
 msg = MSG(HWND(0), UInt32(0), WPARAM(0), LPARAM(0), UInt32(0), POINT(Int32(0), Int32(0)))
 rmsg = Ref(msg)

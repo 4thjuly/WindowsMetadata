@@ -84,6 +84,12 @@ end
 convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$name"))
 convertTypeToJulia(winmd::Winmd, location::String, typename::String) = convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$location.$typename"))
 
+function convertTypeToJulia(winmd::Winmd, location::String, names::Vector{String}) 
+    for name in names
+        convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$location.$name"))
+    end
+end
+
 # Just take the last part of the winmd typename
 function postDotSuffix(typename::String)
     lastdotpos = findlast(isequal('.'), typename)
@@ -161,19 +167,22 @@ function createConstExp(name::String, jfield::Type, val::Any)
     exp = :(const $(Symbol(name)) = $jfield($val))
 end
 
-function convertClassFieldsToJuliaConsts(winmd::Winmd, classname::String, filter::Regex)
+function convertClassFieldsToJuliaConsts(winmd::Winmd, classname::String, filters::Vector{Regex})
     mdi = winmd.mdi
     fields = enumFields(mdi, "$(winmd.prefix).$classname")
     for field in fields
         name, sigblob, pval = getFieldProps(mdi, field)
-        if occursin(filter, name)
-            jfield = convertTypeToJulia(winmd, sigblob)
-            val = fieldValue(jfield, pval)
-            createConstExp(name, jfield, val) |> eval
+        for filter in filters 
+            if occursin(filter, name)
+                jfield = convertTypeToJulia(winmd, sigblob)
+                val = fieldValue(jfield, pval)
+                createConstExp(name, jfield, val) |> eval
+            end
         end
     end
     return nothing
 end
+convertClassFieldsToJuliaConsts(winmd::Winmd, classname::String, filter::Regex) = convertClassFieldsToJuliaConsts(winmd, classname, [filter])
 
 function paramNamesAndAttrs(mdi::CMetaDataImport, params::Vector{mdParamDef})
     results = Tuple{String, DWORD}[]
@@ -250,3 +259,10 @@ function convertFunctionToJulia(winmd::Winmd, mdclass::mdTypeDef, methodname::St
 end
 
 convertFunctionToJulia(winmd::Winmd, classname::String, methodname::String) = convertFunctionToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$classname"), methodname)
+
+function convertFunctionToJulia(winmd::Winmd, classname::String, methodnames::Vector{String})
+    mdclass = findTypeDef(winmd.mdi, "$(winmd.prefix).$classname")
+    for methodname in methodnames
+        convertFunctionToJulia(winmd, mdclass, methodname)
+    end
+end
