@@ -61,9 +61,9 @@ hinst = HINSTANCE(rmod[])
 @show hinst
 
 const HINST_NULL = HINSTANCE(0)
-hicon = LoadIconW(HINST_NULL, Ptr{UInt16}(UInt(IDI_INFORMATION)))
+hicon = LoadIconW(HINST_NULL, IDI_INFORMATION |> UInt |> Ptr{UInt16})
 @show hicon
-hcursor = LoadCursorW(HINST_NULL, Ptr{UInt16}(UInt(IDC_ARROW)))
+hcursor = LoadCursorW(HINST_NULL, IDC_ARROW |> UInt |> Ptr{UInt16})
 @show hcursor
 
 classname = L"Julia Window Class"
@@ -109,7 +109,7 @@ UpdateWindow(hwnd)
 msg = MSG(HWND(0), UInt32(0), WPARAM(0), LPARAM(0), UInt32(0), POINT(Int32(0), Int32(0)))
 rmsg = Ref(msg)
 
-while GetMessageW(rmsg, HWND(0), UInt32(0), UInt32(0)).Value != 0
+while GetMessageW(rmsg, HWND(0), UInt32(0), UInt32(0)) != BOOL(0)
     TranslateMessage(rmsg)
     DispatchMessageW(rmsg)
 end

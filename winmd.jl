@@ -113,11 +113,7 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
     return eval(Symbol(structname))
 end
 
-function createStructType(winmd::Winmd, wstructname::String)
-    structtype = get(winmd.types, wstructname, nothing)
-    if structtype !== nothing return structtype end
-
-    mdi = winmd.mdi
+function createStructType(mdi::CMetaDataImport, wstructname::String)
     winfields = enumFields(mdi, wstructname)
     jfields = Vector{Tuple{String, Type}}(undef, 0)
     for winfield in winfields 
@@ -131,6 +127,12 @@ function createStructType(winmd::Winmd, wstructname::String)
     structtype = createStructType(jname, jfields)
     winmd.types[wstructname] = structtype 
     return structtype
+end
+
+function createStructType(winmd::Winmd, wstructname::String)
+    structtype = get(winmd.types, wstructname, nothing)
+    if structtype !== nothing return structtype end
+    return createStructType(winmd.mdi, wstructname)
 end
 
 function convertTypeToJulia(winmd::Winmd, sigblob::Vector{COR_SIGNATURE})
