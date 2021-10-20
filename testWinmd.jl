@@ -11,7 +11,7 @@ winmd = Winmd("Windows.Win32")
 
 @time begin
 # Defines - these are kinda slow so allow regex filters
-convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", [ r"^(WS_(?!._))", r"^(CS_(?!._))", r"^(CW_(?!._))", r"^(IDI_(?!._))", r"^(IDC_(?!._))", r"^(WM_(?!._))", r"^(COLOR_(?!._))", r"^(SW_(?!._))"])
+convertClassFieldsToJuliaConsts(winmd, "SystemServices.Apis", [r"^(WS_(?!._))", r"^(CS_(?!._))", r"^(CW_(?!._))", r"^(IDI_(?!._))", r"^(IDC_(?!._))", r"^(WM_(?!._))", r"^(COLOR_(?!._))", r"^(SW_(?!._))"])
 
 # TODO Convert delegates to callbacks, until then do this by hand
 convertTypeToJulia(winmd, "WindowsAndMessaging", ["HWND", "WPARAM", "LPARAM"])
@@ -69,7 +69,7 @@ hcursor = LoadCursorW(HINST_NULL, IDC_ARROW |> UInt |> Ptr{UInt16})
 classname = L"Julia Window Class"
 # TODO Support string conversion in a constructor 
 # TODO Support zero-init'd structs
-wc = WNDCLASSEXW(
+rwc = WNDCLASSEXW(
     sizeof(WNDCLASSEXW),
     CS_HREDRAW | CS_VREDRAW,
     @wndproc(myWndProc),
@@ -81,10 +81,9 @@ wc = WNDCLASSEXW(
     HBRUSH(0),
     C_NULL,
     pointer(classname),
-    HICON(0)
-)
+    HICON(0)) |> Ref
 
-class = RegisterClassExW(Ref(wc))
+class = RegisterClassExW(rwc)
 @show class
 
 windowtitle = L"Julia Win32 App"
@@ -106,9 +105,7 @@ hwnd = CreateWindowExW(
 ShowWindow(hwnd, SW_SHOWNORMAL)
 UpdateWindow(hwnd)
 
-msg = MSG(HWND(0), UInt32(0), WPARAM(0), LPARAM(0), UInt32(0), POINT(Int32(0), Int32(0)))
-rmsg = Ref(msg)
-
+rmsg = MSG(HWND(0), UInt32(0), WPARAM(0), LPARAM(0), UInt32(0), POINT(Int32(0), Int32(0))) |> Ref
 while GetMessageW(rmsg, HWND(0), UInt32(0), UInt32(0)) != BOOL(0)
     TranslateMessage(rmsg)
     DispatchMessageW(rmsg)
