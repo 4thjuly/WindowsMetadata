@@ -193,6 +193,7 @@ function convertClassFieldsToJuliaConsts(winmd::Winmd, classname::String, filter
                 jfield = convertTypeToJulia(winmd, sigblob)
                 val = fieldValue(jfield, pval)
                 createConstExp(name, jfield, val) |> eval
+                eval(Expr(:export, Symbol(name)))
             end
         end
     end
