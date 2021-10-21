@@ -23,7 +23,7 @@ function Winmd(winmdname::String)
     mdd = metadataDispenser()
     path = joinpath(dirname(pathof(WindowsMetadata)), "$winmdname.winmd")
     mdi = metadataImport(mdd, path)
-    Winmd(mdi, prefix, Typemap())
+    Winmd(mdi, winmdname, Typemap())
 end
 
 function convertTypeToJulia(type::ELEMENT_TYPE)::Type
