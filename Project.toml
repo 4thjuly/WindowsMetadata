@@ -1,4 +1,4 @@
-name = "winmd"
-uuid = "1bf365ec-a712-49dd-84ae-111fca20b3cc"
+name = "WindowsNetadata"
+uuid = "05eab8d7-a4b7-4027-82f5-7a34c4797698"
 version = "0.1.0"
 authors = ["4thjuly<4thjuly@ellison-taylor.com>"]

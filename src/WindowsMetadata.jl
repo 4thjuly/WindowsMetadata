@@ -1,6 +1,6 @@
 # High level support for winmd metadataimport
 
-module winmd
+module WindowsMetadata
 
 include("metadataimport-wrapper.jl")
 
@@ -18,7 +18,11 @@ struct Winmd
     types::Typemap
 end
 
-Winmd(prefix::String) = Winmd(metadataDispenser() |> metadataImport, prefix, Typemap())
+function Winmd(winmdname::String)
+    mdd = metadataDispenser()
+    mdi = metadataImport(mdd, winmdname)
+    Winmd(mdi, prefix, Typemap())
+end
 
 function convertTypeToJulia(type::ELEMENT_TYPE)::Type
     if type == ELEMENT_TYPE_I

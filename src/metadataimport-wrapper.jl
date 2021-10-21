@@ -205,14 +205,13 @@ const CMetaDataImport = COMObject{IMetaDataImportVtbl}
 # TODO comcall
 #   eg @comcall OpenScope(mdd::CMetaDataDispenser, "Windows.Win32.winmd"::Cwstring, COROPENFLAGS_OFREAD::Cuint, Ref(IID_IMetaDataImport)::Ptr{Cvoid}, rpmdi::Ref{CMetaDataImport})::HRESULT
 
-const WINMD_FILE = joinpath(dirname(pathof(winmd)), "Windows.Win32.winmd")
-
-function metadataImport(mdd::CMetaDataDispenser)
+function metadataImport(mdd::CMetaDataDispenser, winmdfile::String)
+    path = joinpath(dirname(pathof(Winmd)), "$winmdfile.winmd")
     vtbl = getVtbl(mdd)
     rpmdi = Ref(CMetaDataImport(C_NULL))
     res = @ccall $(vtbl.OpenScope)(
         mdd::CMetaDataDispenser, 
-        WINMD_FILE::Cwstring,
+        path::Cwstring,
         COROPENFLAGS_OFREAD::Cuint, 
         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
         rpmdi::Ref{CMetaDataImport}
