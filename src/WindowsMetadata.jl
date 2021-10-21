@@ -11,7 +11,7 @@ export Winmd, L_str, convertClassFieldsToJuliaConsts, convertTypeToJulia, conver
 import Base.@kwdef
 
 macro L_str(s) transcode(Cwchar_t, s) end
-macro export(name::String) eval(Expr(:export, Symbol(name)))
+macro exportname(name::String) eval(Expr(:export, Symbol(name)))
 
 const Typemap = Dict{String, DataType}
 
@@ -127,7 +127,7 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
     eval(sexp)
     # @show structname
     # eval(Expr(:export, Symbol(structname)))
-    @export structname
+    @exportname structname
     return eval(Symbol(structname))
 end
 
