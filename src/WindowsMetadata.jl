@@ -124,7 +124,7 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
     end
     eval(sexp)
     @show structname
-    eval(Expr(:export, structname)) # doesn't work
+    eval(Expr(:export, $structname)) # doesn't work
     return eval(Symbol(structname))
 end
 
