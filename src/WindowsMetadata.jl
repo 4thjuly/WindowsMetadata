@@ -12,9 +12,6 @@ export Winmd, @L_str, convertClassFieldsToJuliaConsts, convertTypeToJulia, conve
 import Base.@kwdef
 
 macro L_str(s) transcode(Cwchar_t, s) end
-macro exportname(name) 
-    return Expr(:export, name)
-end
 
 const Typemap = Dict{String, DataType}
 
@@ -120,6 +117,8 @@ dotToUnderscore(s::String) = replace(s, '.' => '_')
 convertTypeNameToJulia(typename::String) = postDotSuffix(typename)
 convertTypeNameToJulia(typename::String, prefix::String) = replace(typename, "$(prefix)." => "") |> convertTypeNameToJulia
 
+exportname(name::String) = eval(Expr(:export, Symbol(name)))
+
 function createStructType(structname::String, fields::Vector{Tuple{String, Type}})
     fexps = [:($(Symbol(x[1]))::$(x[2])) for x in fields]
     sexp = quote 
@@ -130,7 +129,7 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
     eval(sexp)
     # @show structname
     # eval(Expr(:export, Symbol(structname)))
-    @exportname structname
+    exportname(structname)
     return eval(Symbol(structname))
 end
 
