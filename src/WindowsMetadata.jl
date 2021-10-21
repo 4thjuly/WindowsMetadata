@@ -95,9 +95,11 @@ convertTypeToJulia(winmd::Winmd, name::String) = convertTypeToJulia(winmd, findT
 convertTypeToJulia(winmd::Winmd, location::String, typename::String) = convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$location.$typename"))
 
 function convertTypeToJulia(winmd::Winmd, location::String, names::Vector{String}) 
+    types = Type[]
     for name in names
-        convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$location.$name"))
+        push!(types, convertTypeToJulia(winmd, findTypeDef(winmd.mdi, "$(winmd.prefix).$location.$name")))
     end
+    return types
 end
 
 # Just take the last part of the winmd typename
@@ -119,11 +121,10 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
             $(fexps...)
         end
     end
-    eval(sexp)
-    return eval(Symbol(structname))
+    esc(eval(sexp))
+    return esc(eval(Symbol(structname)))
 end
 
-# function createStructType(mdi::CMetaDataImport, wstructname::String)
 function createStructType(winmd::Winmd, wstructname::String)
     structtype = get(winmd.types, wstructname, nothing)
     if structtype !== nothing return structtype end
@@ -143,12 +144,6 @@ function createStructType(winmd::Winmd, wstructname::String)
     winmd.types[wstructname] = structtype 
     return structtype
 end
-
-# function createStructType(winmd::Winmd, wstructname::String)
-#     structtype = get(winmd.types, wstructname, nothing)
-#     if structtype !== nothing return structtype end
-#     return createStructType(winmd.mdi, wstructname)
-# end
 
 function convertTypeToJulia(winmd::Winmd, sigblob::Vector{COR_SIGNATURE})
     type, len, typeattr, arraylen = fieldSigblobToTypeInfo(sigblob)
