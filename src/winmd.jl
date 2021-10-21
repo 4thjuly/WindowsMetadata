@@ -4,7 +4,7 @@ module winmd
 
 include("metadataimport-wrapper.jl")
 
-export convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia
+export Winmd, convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia
 
 import Base.@kwdef
 

@@ -1,5 +1,4 @@
 # Low level wrapper for metadataimport
-
 import Base.@kwdef
 
 const DEFAULT_BUFFER_LEN = 64*1024
@@ -206,12 +205,14 @@ const CMetaDataImport = COMObject{IMetaDataImportVtbl}
 # TODO comcall
 #   eg @comcall OpenScope(mdd::CMetaDataDispenser, "Windows.Win32.winmd"::Cwstring, COROPENFLAGS_OFREAD::Cuint, Ref(IID_IMetaDataImport)::Ptr{Cvoid}, rpmdi::Ref{CMetaDataImport})::HRESULT
 
+const WINMD_FILE = joinpath(dirname(pathof(winmd)), "Windows.Win32.winmd")
+
 function metadataImport(mdd::CMetaDataDispenser)
     vtbl = getVtbl(mdd)
     rpmdi = Ref(CMetaDataImport(C_NULL))
     res = @ccall $(vtbl.OpenScope)(
         mdd::CMetaDataDispenser, 
-        "Windows.Win32.winmd"::Cwstring,
+        WINMD_FILE::Cwstring,
         COROPENFLAGS_OFREAD::Cuint, 
         Ref(IID_IMetaDataImport)::Ptr{Cvoid}, 
         rpmdi::Ref{CMetaDataImport}
@@ -220,18 +221,18 @@ function metadataImport(mdd::CMetaDataDispenser)
     return rpmdi[]
 end
 
-function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
-    vtbl = getVtbl(mdi)
-    rtypedef = Ref(mdToken(0))
-    res = @ccall $(vtbl.FindTypeDefByName)(
-        mdi::CMetaDataImport, 
-        name::Cwstring, 
-        mdTokenNil::mdToken, 
-        rtypedef::Ref{mdToken}
-        )::HRESULT
-    if res != S_OK throw(HRESULT_FAILED(res)) end 
-    return rtypedef[]
-end
+# function findTypeDef(mdi::CMetaDataImport, name::String)::mdToken
+#     vtbl = getVtbl(mdi)
+#     rtypedef = Ref(mdToken(0))
+#     res = @ccall $(vtbl.FindTypeDefByName)(
+#         mdi::CMetaDataImport, 
+#         name::Cwstring, 
+#         mdTokenNil::mdToken, 
+#         rtypedef::Ref{mdToken}
+#         )::HRESULT
+#     if res != S_OK throw(HRESULT_FAILED(res)) end 
+#     return rtypedef[]
+# end
 
 function findMethod(mdi::CMetaDataImport, td::mdTypeDef, methodName::String)
     vtbl = getVtbl(mdi)
