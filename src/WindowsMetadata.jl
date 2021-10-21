@@ -4,6 +4,8 @@ module WindowsMetadata
 
 include("metadataimport-wrapper.jl")
 
+# TODO - rethink export of types, seems weird to "pollute" the caller
+#   Maybe switch to using WindowsMetadata: WindowsMetadata as WMD and then use as WMD.HWND, WMD.LPARAM etc
 export Winmd, convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia
 
 import Base.@kwdef
@@ -57,7 +59,6 @@ function convertTypeToJulia(type::ELEMENT_TYPE)::Type
 end
 
 function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::Type
-    @show parentmodule(WindowsMetadata)
     mdi = winmd.mdi
     if mdt & UInt32(TOKEN_TYPE_MASK) == 0x00000000
         if ELEMENT_TYPE(mdt) == ELEMENT_TYPE_ARRAY
@@ -123,8 +124,8 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
         end
     end
     eval(sexp)
-    @show structname
-    eval(Expr(:export, Symbol(structname))) # doesn't work
+    # @show structname
+    eval(Expr(:export, Symbol(structname)))
     return eval(Symbol(structname))
 end
 
@@ -233,6 +234,7 @@ function createCCall(mod::String, funcname::String, rettype::Type, params::Vecto
         end
     end
 
+    eval(Expr(:export, Symbol(funcname)))
     return eval(callexp)
 end
 
