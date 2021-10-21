@@ -57,6 +57,7 @@ function convertTypeToJulia(type::ELEMENT_TYPE)::Type
 end
 
 function convertTypeToJulia(winmd::Winmd, mdt::mdToken)::Type
+    @show parentmodule(winmd)
     mdi = winmd.mdi
     if mdt & UInt32(TOKEN_TYPE_MASK) == 0x00000000
         if ELEMENT_TYPE(mdt) == ELEMENT_TYPE_ARRAY
@@ -122,7 +123,8 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
         end
     end
     eval(sexp)
-    eval(Expr(:export, Symbol(structname)))
+    @show structname
+    eval(Expr(:export, structname)) # doesn't work
     return eval(Symbol(structname))
 end
 
