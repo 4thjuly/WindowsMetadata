@@ -13,7 +13,7 @@ import Base.@kwdef
 
 macro L_str(s) transcode(Cwchar_t, s) end
 macro exportname(name) 
-    return :(export $name)
+    return Expr(:export, name)
 end
 
 const Typemap = Dict{String, DataType}
