@@ -127,8 +127,6 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
         end
     end
     eval(sexp)
-    # @show structname
-    # eval(Expr(:export, Symbol(structname)))
     exportname(structname)
     return eval(Symbol(structname))
 end
@@ -183,9 +181,7 @@ function convertClassFieldsToJulia(winmd::Winmd, classname::String, filter::Rege
     return Base.invokelatest(structtype, jinitvals...)
 end
 
-function createConstExp(name::String, jfield::Type, val::Any)
-    exp = :(const $(Symbol(name)) = $jfield($val))
-end
+createConstExp(name::String, jfield::Type, val::Any) = :(const $(Symbol(name)) = $jfield($val))
 
 function convertClassFieldsToJuliaConsts(winmd::Winmd, classname::String, filters::Vector{Regex})
     mdi = winmd.mdi
@@ -197,7 +193,7 @@ function convertClassFieldsToJuliaConsts(winmd::Winmd, classname::String, filter
                 jfield = convertTypeToJulia(winmd, sigblob)
                 val = fieldValue(jfield, pval)
                 createConstExp(name, jfield, val) |> eval
-                eval(Expr(:export, Symbol(name)))
+                exportname(name)
             end
         end
     end
@@ -239,7 +235,7 @@ function createCCall(mod::String, funcname::String, rettype::Type, params::Vecto
         end
     end
 
-    eval(Expr(:export, Symbol(funcname)))
+    exportname(funcname)
     return eval(callexp)
 end
 
