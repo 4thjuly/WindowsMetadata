@@ -121,8 +121,8 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
             $(fexps...)
         end
     end
-    esc(eval(sexp))
-    return esc(eval(Symbol(structname)))
+    eval(sexp)
+    return eval(Symbol(structname))
 end
 
 function createStructType(winmd::Winmd, wstructname::String)
