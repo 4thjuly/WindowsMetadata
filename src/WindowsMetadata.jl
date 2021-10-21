@@ -6,11 +6,12 @@ include("metadataimport-wrapper.jl")
 
 # TODO - rethink export of types, seems weird to "pollute" the caller
 #   Maybe switch to using WindowsMetadata: WindowsMetadata as WMD and then use as WMD.HWND, WMD.LPARAM etc
-export Winmd, convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia
+export Winmd, L_str, convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia
 
 import Base.@kwdef
 
 macro L_str(s) transcode(Cwchar_t, s) end
+macro export(name::String) eval(Expr(:export, Symbol(name)))
 
 const Typemap = Dict{String, DataType}
 
@@ -125,7 +126,8 @@ function createStructType(structname::String, fields::Vector{Tuple{String, Type}
     end
     eval(sexp)
     # @show structname
-    eval(Expr(:export, Symbol(structname)))
+    # eval(Expr(:export, Symbol(structname)))
+    @export structname
     return eval(Symbol(structname))
 end
 
