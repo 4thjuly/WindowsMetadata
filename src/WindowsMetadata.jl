@@ -18,9 +18,11 @@ struct Winmd
     types::Typemap
 end
 
+# TODO - Support other winmd files
 function Winmd(winmdname::String)
     mdd = metadataDispenser()
-    mdi = metadataImport(mdd, winmdname)
+    path = joinpath(dirname(pathof(WindowsMetadata)), "$winmdname.winmd")
+    mdi = metadataImport(mdd, path)
     Winmd(mdi, prefix, Typemap())
 end
 
