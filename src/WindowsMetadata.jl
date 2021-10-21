@@ -7,7 +7,7 @@ include("metadataimport-wrapper.jl")
 # TODO - rethink export of types, seems weird to "pollute" the caller
 #   Maybe switch to using WindowsMetadata: WindowsMetadata as WMD and then use as WMD.HWND, WMD.LPARAM etc
 # TODO make exportname macro
-export Winmd, L_str, convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia
+export Winmd, @L_str, convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia
 
 import Base.@kwdef
 
