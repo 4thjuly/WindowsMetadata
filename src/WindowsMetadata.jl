@@ -22,11 +22,12 @@ struct Winmd
 end
 
 # Default to Windows.Win32 in this package
+const DEFAULT_WINMD = "Windows.Win32"
 function Winmd()
     mdd = metadataDispenser()
-    path = joinpath(dirname(pathof(WindowsMetadata)), "Windows.Win32.winmd")
+    path = joinpath(dirname(pathof(WindowsMetadata)), "$(DEFAULT_WINMD).winmd")
     mdi = metadataImport(mdd, path)
-    Winmd(mdi, winmdname, Typemap())
+    Winmd(mdi, DEFAULT_WINMD, Typemap())
 end
 
 function Winmd(winmdpath::String)
