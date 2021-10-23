@@ -24,17 +24,24 @@ end
 # Default to Windows.Win32 in this package
 const DEFAULT_WINMD = "Windows.Win32"
 function Winmd()
-    mdd = metadataDispenser()
     path = joinpath(dirname(pathof(WindowsMetadata)), "$(DEFAULT_WINMD).winmd")
-    mdi = metadataImport(mdd, path)
+    mdi = metadataImport(metadataDispenser(), path)
     Winmd(mdi, DEFAULT_WINMD, Typemap())
 end
 
-function Winmd(winmdpath::String)
-    mdd = metadataDispenser()
-    mdi = metadataImport(mdd, winmdpath)
-    Winmd(mdi, winmdname, Typemap())
+# Assume winmd is just the type prefix with a .winmd on the end
+function Winmd(typeprefix::String)
+    winmdpath = "$typeprefix.winmd"
+    mdi = metadataImport(metadataDispenser(), winmdpath)
+    Winmd(mdi, typeprefix, Typemap())
 end
+
+# Support custom winmd names
+function Winmd(winmdpath::String, typeprefix::String)
+    mdi = metadataImport(metadataDispenser(), winmdpath)
+    Winmd(mdi, typeprefix, Typemap())
+end
+
 
 function convertTypeToJulia(type::ELEMENT_TYPE)::Type
     if type == ELEMENT_TYPE_I
