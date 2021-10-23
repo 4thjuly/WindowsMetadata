@@ -21,11 +21,17 @@ struct Winmd
     types::Typemap
 end
 
-# TODO - Support other winmd files
-function Winmd(winmdname::String)
+# Default to Windows.Win32 in this package
+function Winmd()
     mdd = metadataDispenser()
-    path = joinpath(dirname(pathof(WindowsMetadata)), "$winmdname.winmd")
+    path = joinpath(dirname(pathof(WindowsMetadata)), "Windows.Win32.winmd")
     mdi = metadataImport(mdd, path)
+    Winmd(mdi, winmdname, Typemap())
+end
+
+function Winmd(winmdpath::String)
+    mdd = metadataDispenser()
+    mdi = metadataImport(mdd, winmdpath)
     Winmd(mdi, winmdname, Typemap())
 end
 
