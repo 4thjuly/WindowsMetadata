@@ -7,11 +7,13 @@ include("metadataimport-wrapper.jl")
 # TODO - rethink export of types, seems weird to "pollute" the caller
 #   Maybe switch to using WindowsMetadata: WindowsMetadata as WMD and then use as WMD.HWND, WMD.LPARAM etc
 # TODO make exportname macro
-export Winmd, @L_str, convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia
+export Winmd, @L_str, convertClassFieldsToJuliaConsts, convertTypeToJulia, convertFunctionToJulia, MAKEINTRESOURCEW
 
 import Base.@kwdef
 
+# Helpers
 macro L_str(s) transcode(Cwchar_t, s) end
+MAKEINTRESOURCEW(i) = i |> UInt |> Ptr{UInt16}
 
 const Typemap = Dict{String, DataType}
 
@@ -33,6 +35,7 @@ end
 function Winmd(typeprefix::String)
     winmdpath = "$typeprefix.winmd"
     mdi = metadataImport(metadataDispenser(), winmdpath)
+    @show typeprefix winmdpath
     Winmd(mdi, typeprefix, Typemap())
 end
 
@@ -41,7 +44,6 @@ function Winmd(winmdpath::String, typeprefix::String)
     mdi = metadataImport(metadataDispenser(), winmdpath)
     Winmd(mdi, typeprefix, Typemap())
 end
-
 
 function convertTypeToJulia(type::ELEMENT_TYPE)::Type
     if type == ELEMENT_TYPE_I
