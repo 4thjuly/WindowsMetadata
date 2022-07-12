@@ -12,7 +12,7 @@ export Winmd, @L_str, convertClassFieldsToJuliaConsts, convertTypeToJulia, conve
 import Base.@kwdef
 
 # Helpers
-macro L_str(s) transcode(Cwchar_t, s) end
+macro L_str(s) Base.cconvert(Cwstring, s) end
 MAKEINTRESOURCEW(i) = i |> UInt |> Ptr{UInt16}
 
 const Typemap = Dict{String, DataType}
